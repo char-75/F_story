@@ -254,6 +254,8 @@ body.ro .viewport{cursor:grab}
 .aip .list{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff}
 .era-zone{position:absolute;border:1.5px dashed var(--ec);border-radius:14px;background:color-mix(in srgb,var(--ec) 6%,transparent);pointer-events:none}
 .era-zone span{position:absolute;left:12px;top:8px;font-size:12px;font-weight:700;color:#fff;background:var(--ec);border-radius:6px;padding:2px 9px;pointer-events:auto;cursor:pointer;white-space:nowrap}
+.migbar{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:120;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:12px 16px;font-size:13px;max-width:min(760px,92vw);line-height:1.6}
+.migbar .btn{margin:8px 6px 0 0}
 .tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;z-index:150;display:none;max-width:280px;line-height:1.5;white-space:pre-wrap}
 .modal-bg{position:fixed;inset:0;background:rgba(20,16,12,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
 .modal-bg.show{display:flex}
@@ -301,6 +303,7 @@ body.ro .viewport{cursor:grab}
     <div class="card"><h3><span data-t="{era}"></span> <button class="btn ghost sm" onclick="openEra()">＋</button></h3><div id="eraList"></div></div>
     <div class="card"><h3><span data-t="{cat}"></span> <button class="btn ghost sm" onclick="editList('cats')">편집</button></h3><div class="chips" id="catChips"></div></div>
     <div class="card"><h3><span data-t="{who}"></span> <span><button class="btn ghost sm" onclick="setView('chars')">목록</button><button class="btn ghost sm" onclick="openChar()">＋</button></span></h3><div id="charList"></div><div class="hint" style="margin-top:6px" data-t="클릭하면 그 {who}의 흐름을 플로우에 표시합니다"></div></div>
+    <div class="card"><h3><span data-t="{group}"></span></h3><div class="chips" id="laneChips"></div></div>
     <div class="card"><h3><span data-t="{tag}"></span></h3><div class="chips" id="lChips"></div></div>
   </aside>
 
@@ -356,7 +359,7 @@ body.ro .viewport{cursor:grab}
     </div>
     <div class="field"><label>제목</label><input id="f_title" /></div>
     <div class="row3">
-      <div class="field"><label data-t="{group}"></label><input id="f_lane" list="dlLanes" /></div>
+      <div class="field"><label data-t="{group}"></label><input id="f_lane" list="dlLanes" placeholder="예: 수도 아르덴" /></div>
       <div class="field"><label data-t="{cat}"></label><select id="f_cat"></select></div>
       <div class="field"><label>중요도</label><select id="f_imp"><option value="1">보통</option><option value="2">주요</option><option value="3">핵심 전환점</option></select></div>
     </div>
@@ -409,7 +412,7 @@ body.ro .viewport{cursor:grab}
     </div>
     <div class="row">
       <div class="field"><label>역할</label><input id="c_role" list="dlRoles" placeholder="예: 핵심, 협력, 반대…" /></div>
-      <div class="field"><label>소속</label><input id="c_faction" list="dlLanes" /></div>
+      <div class="field"><label>소속</label><input id="c_faction" list="dlFactions" /></div>
     </div>
     <div class="row">
       <div class="field"><label id="lb_born"></label><input id="c_born" type="number" placeholder="모르면 비워두기" /></div>
@@ -445,7 +448,7 @@ body.ro .viewport{cursor:grab}
       <div class="field"><label>관련된 사람·대상</label><input id="t_who"></div>
     </div>
     <div class="row3">
-      <div class="field"><label>가로줄 묶음</label><input id="t_group"></div>
+      <div class="field"><label>장소 (가로줄 묶음)</label><input id="t_group"></div>
       <div class="field"><label>유형 구분</label><input id="t_cat"></div>
       <div class="field"><label>보조 키워드</label><input id="t_tag"></div>
     </div>
@@ -522,6 +525,7 @@ body.ro .viewport{cursor:grab}
 </div></div>
 <div class="modal-bg" id="detailModal"><div class="modal"><div id="detailBody"></div><div class="actions" id="detailFoot" style="margin-top:14px"></div></div></div>
 <datalist id="dlLanes"></datalist>
+<datalist id="dlFactions"></datalist>
 <div class="tip" id="tip"></div>
 <div class="ctx" id="ctx"></div>
 <div id="lb" onclick="if(event.target===this)closeLB()"><button class="x" onclick="closeLB()">✕</button><button class="nav prev" onclick="lbGo(-1)">‹</button><img id="lbImg" alt=""><button class="nav next" onclick="lbGo(1)">›</button><div class="cap" id="lbCap"></div><div class="dots" id="lbDots"></div></div>
@@ -542,6 +546,7 @@ function normalize(d){
   d.eras.forEach(e=>e.id=e.id||uid());
   d.events.forEach(e=>{e.id=e.id||uid();e.year=+e.year||0;e.imp=+e.imp||1;e.people=e.people||[];e.places=e.places||[];e.links=(e.links||[]).filter(l=>l&&l.to);e.lane=e.lane||'';e.imgs=e.imgs||[]});
   if(d.free===undefined)d.free=true;
+  if(d.terms&&!d.terms._place){if(['그룹','라인'].includes(d.terms.group))d.terms.group='장소';if(d.terms.tag==='장소'&&d.terms.group==='장소')d.terms.tag='키워드';d.terms._place=true}
   d.chars=(d.chars||[]).map(c=>({id:c.id||uid(),name:c.name,role:c.role||'',faction:c.faction||'',born:c.born??null,died:c.died??null,color:c.color||CPAL[0],desc:c.desc||'',rels:(c.rels||[]).filter(r=>r&&r.to),imgs:c.imgs||[]})).filter(c=>c.name);
   d.events.forEach(e=>e.people.forEach(n=>{if(!d.chars.some(c=>c.name===n))d.chars.push({id:uid(),name:n,role:'',faction:'',born:null,died:null,color:CPAL[d.chars.length%CPAL.length],desc:'',rels:[]})}));
   return d;
@@ -567,12 +572,12 @@ const READONLY=window.READONLY_MODE===true;
 let D=null;
 if(!READONLY)for(const k of [KEY,OLDKEY]){try{const o=JSON.parse(localStorage.getItem(k));if(o&&o.events){D=o;if(k===OLDKEY)o.events.forEach(e=>e.lane=e.lane||'');break}}catch(e){}}
 D=normalize(stripSample(D?normalize(D):null)||{name:'',cal:'',lanes:[],eras:[],events:[],chars:[],cleaned:true});
-let F={cats:new Set(),places:new Set(),focus:null,imp:1,view:'flow',laneMode:'lane'};
+let F={cats:new Set(),places:new Set(),lanes:new Set(),focus:null,imp:1,view:'flow',laneMode:'lane'};
 let Z=1, POS={}, LANES=[], COLS=[], editingEv=null, tmpLinks=[], editingEra=null, ioFmt='json', listKey='';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const DEFAULT_TERMS={era:'구간',item:'항목',who:'참여자',group:'그룹',cat:'분류',tag:'태그',age:'elapsed'};
-const PRESETS={'기본':DEFAULT_TERMS,'스토리·세계관':{era:'시대',item:'사건',who:'인물',group:'라인',cat:'분류',tag:'장소',age:'age'},'프로젝트':{era:'단계',item:'마일스톤',who:'담당자',group:'트랙',cat:'유형',tag:'태그',age:'elapsed'},'회사·조직 연혁':{era:'시기',item:'이력',who:'조직·인물',group:'부문',cat:'분야',tag:'키워드',age:'elapsed'},'역사 정리':{era:'시대',item:'사건',who:'인물',group:'지역',cat:'분야',tag:'키워드',age:'age'}};
+const DEFAULT_TERMS={era:'구간',item:'항목',who:'참여자',group:'장소',cat:'분류',tag:'태그',age:'elapsed'};
+const PRESETS={'기본':DEFAULT_TERMS,'스토리·세계관':{era:'시대',item:'사건',who:'인물',group:'장소',cat:'분류',tag:'키워드',age:'age'},'프로젝트':{era:'단계',item:'마일스톤',who:'담당자',group:'트랙',cat:'유형',tag:'태그',age:'elapsed'},'회사·조직 연혁':{era:'시기',item:'이력',who:'조직·인물',group:'부문',cat:'분야',tag:'키워드',age:'elapsed'},'역사 정리':{era:'시대',item:'사건',who:'인물',group:'장소',cat:'분야',tag:'키워드',age:'age'}};
 function TT(){return {...DEFAULT_TERMS,...(D.terms||{})}}
 function jo(w,p){const c=w.charCodeAt(w.length-1),h=c>=0xAC00&&c<=0xD7A3,j=h?(c-0xAC00)%28:0;if(p==='으로/로')return w+((!h||j===0||j===8)?'로':'으로');const [a,b]=p.split('/');return w+(h&&j?a:b)}
 function tx(s){const T=TT();return s.replace(/\{(\w+)(?:\|([^}]+))?\}/g,(m,k,p)=>{const w=T[k]??m;return p?jo(w,p):w})}
@@ -581,7 +586,7 @@ function applyTerms(){document.querySelectorAll('[data-t]').forEach(el=>el.textC
   $('lb_born').textContent=AGE()?'출생 연도':'시작 연도';$('lb_died').textContent=AGE()?'사망 연도':'종료 연도';}
 function openTerms(){fillTerms(TT());$('presetChips').innerHTML=Object.keys(PRESETS).map(k=>`<span class="chip" onclick="fillTerms(PRESETS['${k}'])">${k}</span>`).join('');openM('termsModal')}
 function fillTerms(T){['era','item','who','group','cat','tag'].forEach(k=>$('t_'+k).value=T[k]);$('t_age').value=T.age}
-function saveTerms(){const n={};['era','item','who','group','cat','tag'].forEach(k=>n[k]=$('t_'+k).value.trim()||DEFAULT_TERMS[k]);n.age=$('t_age').value;D.terms=n;closeM('termsModal');render();toast('용어를 바꿨습니다')}
+function saveTerms(){const n={_place:true};['era','item','who','group','cat','tag'].forEach(k=>n[k]=$('t_'+k).value.trim()||DEFAULT_TERMS[k]);n.age=$('t_age').value;D.terms=n;closeM('termsModal');render();toast('용어를 바꿨습니다')}
 function save(){if(READONLY)return;try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){}}
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2000)}
 function fmtYear(y){y=Number(y);const c=D.cal?D.cal+' ':'';return y<0?`${c}이전 ${-y}년`:`${c}${y}년`}
@@ -594,6 +599,7 @@ function allOf(k){const s=new Map();D.events.forEach(e=>(e[k]||[]).forEach(v=>s.
 const splitList=s=>s.split(',').map(x=>x.trim()).filter(Boolean);
 
 function matches(e){
+  if(F.lanes.size&&!F.lanes.has(e.lane||''))return false;
   const q=$('q').value.trim().toLowerCase();
   if(e.imp<F.imp) return false;
   if(F.cats.size&&!F.cats.has(e.cat)) return false;
@@ -602,7 +608,7 @@ function matches(e){
   if(q&&![e.title,e.desc,e.note,e.cat,e.lane,...e.people,...e.places].join(' ').toLowerCase().includes(q)) return false;
   return true;
 }
-function filterCount(){return F.cats.size+(F.focus?1:0)+F.places.size+($('q').value?1:0)+(F.imp>1?1:0)}
+function filterCount(){return F.lanes.size+F.cats.size+(F.focus?1:0)+F.places.size+($('q').value?1:0)+(F.imp>1?1:0)}
 function laneKey(e){if(F.laneMode==='cat')return e.cat||NOLANE;if(F.laneMode==='none')return '전체';return e.lane||NOLANE}
 
 /* ---------- layout ---------- */
@@ -660,7 +666,9 @@ function renderSide(){
   const chip=(k,[v,n])=>`<span class="chip ${F[k].has(v)?'on':''}" data-k="${k}" data-v="${esc(v)}">${esc(v)} <small>${n}</small></span>`;
   const cnt=n=>D.events.filter(e=>e.people.includes(n)).length;
   $('charList').innerHTML=D.chars.map(c=>`<div class="char-row ${F.focus===c.id?'on':''}" onclick="toggleFocus('${c.id}')">${avatar(c,22)}<span class="cn">${esc(c.name)}</span><span class="cr">${esc(c.role||'')} ${cnt(c.name)}</span><button class="ed" title="편집" onclick="event.stopPropagation();openChar('${c.id}')">✎</button></div>`).join('')||`<div class="hint">${tx('아직 {who|이/가} 없습니다')}</div>`;
+  $('dlFactions').innerHTML=[...new Set(D.chars.map(c=>c.faction).filter(Boolean))].map(f=>`<option value="${esc(f)}">`).join('');
   $('dlChars').innerHTML=D.chars.map(c=>`<option value="${esc(c.name)}">`).join('');
+  {const m=new Map();D.events.forEach(e=>{if(e.lane)m.set(e.lane,(m.get(e.lane)||0)+1)});$('laneChips').innerHTML=[...m.entries()].sort((a,b)=>b[1]-a[1]).map(x=>chip('lanes',x)).join('')||`<span class="hint">${tx('{item}에 {group|을/를} 넣으면 표시됩니다')}</span>`}
   $('lChips').innerHTML=allOf('places').map(x=>chip('places',x)).join('')||`<span class="hint">${tx('{item}에 {tag|을/를} 넣으면 표시됩니다')}</span>`;
 }
 document.addEventListener('click',e=>{const c=e.target.closest('.chip[data-k]');if(!c)return;const k=c.dataset.k,v=c.dataset.v;F[k].has(v)?F[k].delete(v):F[k].add(v);render()});
@@ -811,7 +819,7 @@ function renderFlow(){
     top+=`<div class="edge-bar" style="left:${p.mx}px;top:${p.my+14}px"><input id="edgeLabel" value="${esc(sl.label||'')}" placeholder="관계 이름"><button class="btn ghost sm" title="곡선 초기화" onclick="resetBend()">↺</button><button class="btn ghost sm danger" title="연결 삭제 (Delete)" onclick="delSelEdge()">삭제</button></div>`}
   h+=s;
   // nodes
-  D.events.forEach(e=>{const p=POS[e.id];if(!p)return;const sub=[e.people.length?e.people.map(n=>avatar(charByName(n)||{name:n,color:'#bbb'},14)+esc(n)).join(', '):'',e.places.length?'📍 '+esc(e.places.join(', ')):''].filter(Boolean).join(' · ')||(e.note?'🎬 '+esc(e.note):'');const cov=thumb(e.imgs[0]);
+  D.events.forEach(e=>{const p=POS[e.id];if(!p)return;const sub=[e.people.length?e.people.map(n=>avatar(charByName(n)||{name:n,color:'#bbb'},14)+esc(n)).join(', '):'',e.lane?'📍 '+esc(e.lane):'',e.places.length?'# '+esc(e.places.join(', ')):''].filter(Boolean).join(' · ')||(e.note?'🎬 '+esc(e.note):'');const cov=thumb(e.imgs[0]);
     const tip=`${fmtYear(e.year)}${e.when?' '+e.when:''} · ${e.title}${e.desc?'\n'+e.desc:''}${e.note?'\n🎬 '+e.note:''}`;
     h+=`<div class="node imp${e.imp} ${cov?'has-img':''} ${SELN.has(e.id)?'picked':''} ${filt&&!matches(e)?'dim':''}" id="n-${e.id}" data-id="${e.id}" data-tip="${esc(tip)}" style="left:${p.x}px;top:${p.y}px;width:${NW}px;height:${NH}px;--c:${catColor(e.cat)}">
       <div class="n-top"><span class="n-yr">${shortYear(e.year)}${e.when?` <small style="font-family:Noto Sans KR;font-weight:400;color:var(--sub)">${esc(e.when)}</small>`:''}</span><span class="n-cat">${e.imp===3?'★ ':''}${esc(e.cat)}</span></div>
@@ -1099,13 +1107,13 @@ async function aiAnalyze(){
 - year: 본문에서 연도를 알 수 있을 때만 정수(연호: ${D.cal||'없음'}), 모르면 null. when: "봄", "사흘 뒤" 같은 세부 시점, 없으면 "".
 - title: 15자 안팎 제목. desc: 1~3문장 요약(원문을 길게 옮기지 말고 요약).
 - people: 이 사건에 직접 나오는 인물 이름. 아래 [기존 인물]과 같은 인물이면 반드시 그 이름 그대로.
-- places: 장소 이름. cat: 다음 중 하나 ${JSON.stringify(D.cats)}. imp: 1 보통, 2 주요, 3 핵심 전환점.
-- group: 사건이 속한 흐름 줄기(인물·세력·지역 등). 기존 값 ${JSON.stringify(D.lanes)} 중 맞으면 재사용, 없으면 짧게 새로.
+- place: 사건이 일어난 주된 장소 하나. 기존 장소 ${JSON.stringify([...new Set([...D.lanes,...D.events.map(e=>e.lane).filter(Boolean)])])} 중 같은 곳이면 그 이름 그대로. 알 수 없으면 "".
+- tags: 그 밖의 관련 키워드(세부 장소, 물건, 개념 등) 0~3개. cat: 다음 중 하나 ${JSON.stringify(D.cats)}. imp: 1 보통, 2 주요, 3 핵심 전환점.
 - causes: 이 사건을 직접 일으킨 이전 사건의 key 배열(이번 본문 또는 [이전 사건]의 key). 관계 이름이 분명하면 causeLabels에 같은 순서로.
 - characters: 이번 본문의 주요 인물 {name, role(주인공/조연/적대자 등), faction, desc(1문장), born(알 수 있으면 연도, 아니면 null)}.
 - relations: 인물 관계 {a, b, label}. eras: 큰 시대 구분이 본문에 분명할 때만 {name, desc}${chunks[i].ch>=0?' (장 구분은 이미 처리하므로 장 이름은 넣지 말 것)':''}.
 ${hint?'- 사용자 요청: '+hint+'\n':''}JSON 하나로만 답하라. 예:
-{"events":[{"key":"k${i+1}_1","order":1,"year":null,"when":"","title":"국경 마을의 밤","desc":"…","people":["리아"],"places":["헤센"],"cat":"${D.cats[0]||'시작'}","imp":2,"group":"주인공","causes":[],"causeLabels":[]}],"characters":[{"name":"리아","role":"주인공","faction":"","desc":"…","born":null}],"relations":[{"a":"리아","b":"카엘","label":"동료"}],"eras":[]}
+{"events":[{"key":"k${i+1}_1","order":1,"year":null,"when":"","title":"국경 마을의 밤","desc":"…","people":["리아"],"place":"헤센","tags":["낡은 펜던트"],"cat":"${D.cats[0]||'시작'}","imp":2,"causes":[],"causeLabels":[]}],"characters":[{"name":"리아","role":"주인공","faction":"","desc":"…","born":null}],"relations":[{"a":"리아","b":"카엘","label":"동료"}],"eras":[]}
 
 [기존 인물] ${known().join(', ')||'(없음)'}
 [이전 사건]
@@ -1130,7 +1138,7 @@ function aiRenderPreview(R,more){AIRES=R;const ev=aiYears(R);
   const chars=R.chars.map((c,i)=>({...c,i,exists:!!charByName(c.name)}));
   $('aiPreview').innerHTML=`<div class="aip">
    <h4><span>${tx('{item}')} ${ev.length}개${more?' (계속 읽는 중…)':''}</span><label class="hint"><input type="checkbox" checked onchange="document.querySelectorAll('.ai-ev').forEach(c=>c.checked=this.checked)"> 전체</label></h4>
-   <div class="list">${ev.map((e,k)=>`${R.chapters.length&&e.ch>=0&&(k===0||ev[k-1].ch!==e.ch)?`<div class="hint" style="padding:6px 8px 2px;font-weight:700;color:var(--ink)">${esc(R.chapters[e.ch])}</div>`:''}<label class="ai-row"><input type="checkbox" class="ai-ev" data-k="${esc(e.key)}" checked><span class="yr">${shortYear(e._y)}</span><span style="flex:1"><b>${e.imp==3?'★ ':''}${esc(e.title)}</b>${e.group?`<span class="badge">${esc(e.group)}</span>`:''}${(e.causes||[]).length?`<span class="badge">← ${(e.causes||[]).length}</span>`:''}<span class="sub">${esc([(e.people||[]).join(', '),(e.places||[]).join(', ')].filter(Boolean).join(' · '))}${e.desc?' — '+esc(e.desc):''}</span></span></label>`).join('')}</div>
+   <div class="list">${ev.map((e,k)=>`${R.chapters.length&&e.ch>=0&&(k===0||ev[k-1].ch!==e.ch)?`<div class="hint" style="padding:6px 8px 2px;font-weight:700;color:var(--ink)">${esc(R.chapters[e.ch])}</div>`:''}<label class="ai-row"><input type="checkbox" class="ai-ev" data-k="${esc(e.key)}" checked><span class="yr">${shortYear(e._y)}</span><span style="flex:1"><b>${e.imp==3?'★ ':''}${esc(e.title)}</b>${(e.place??e.group)?`<span class="badge">📍 ${esc(e.place??e.group)}</span>`:''}${(e.causes||[]).length?`<span class="badge">← ${(e.causes||[]).length}</span>`:''}<span class="sub">${esc([(e.people||[]).join(', '),(e.tags||e.places||[]).join(', ')].filter(Boolean).join(' · '))}${e.desc?' — '+esc(e.desc):''}</span></span></label>`).join('')}</div>
    ${chars.length?`<h4><span>${tx('{who}')} ${chars.length}명</span></h4><div class="list" style="max-height:160px">${chars.map(c=>`<label class="ai-row"><input type="checkbox" class="ai-ch" data-i="${c.i}" checked><span style="flex:1"><b>${esc(c.name)}</b>${c.exists?'<span class="badge">기존 · 빈 정보만 채움</span>':''}${c.role?`<span class="badge">${esc(c.role)}</span>`:''}<span class="sub">${esc(c.desc||'')}</span></span></label>`).join('')}</div>`:''}
    ${R.chapters.length?`<h4><span>장 → ${tx('{era}')} ${R.chapters.length}개</span></h4><div class="list" style="max-height:140px">${R.chapters.map((t,ci)=>{const n=ev.filter(e=>e.ch===ci).length;return `<label class="ai-row"><input type="checkbox" class="ai-cp" data-ch="${ci}" ${n?'checked':'disabled'}><span style="flex:1"><b>${esc(t)}</b><span class="badge">${tx('{item}')} ${n}개</span></span></label>`}).join('')}</div>`:''}
    ${R.eras.length?`<h4><span>${tx('{era}')} ${R.eras.length}개</span></h4><div class="list" style="max-height:100px">${R.eras.map((r,i)=>`<label class="ai-row"><input type="checkbox" class="ai-er" data-i="${i}" ${D.eras.some(x=>x.name===r.name)?'disabled':'checked'}><span style="flex:1"><b>${esc(r.name)}</b>${D.eras.some(x=>x.name===r.name)?'<span class="badge">이미 있음</span>':''}<span class="sub">${esc(r.desc||'')}</span></span></label>`).join('')}</div>`:''}
@@ -1153,12 +1161,12 @@ function aiApply(){const R=AIRES;if(!R)return;const ev=aiYears(R);
   // 항목 + 배치
   const keyId={},picked=ev.filter(e=>pickE.has(e.key));
   let baseY=LPAD;Object.values(POS).forEach(p=>baseY=Math.max(baseY,p.y+NH+90));
-  const groups=[...new Set(picked.map(e=>e.group||''))];let gapX=0;
+  const pl=e=>String(e.place??e.group??'');const groups=[...new Set(picked.map(pl))];let gapX=0;
   picked.forEach((e,i)=>{const id=uid();keyId[e.key]=id;
-    const cat=D.cats.includes(e.cat)?e.cat:D.cats[0]||'';const lane=(e.group||'').trim();if(lane&&!D.lanes.includes(lane))D.lanes.push(lane);
-    const n={id,year:e._y,when:e.when||'',title:String(e.title).slice(0,60),cat,imp:[1,2,3].includes(+e.imp)?+e.imp:1,desc:e.desc||'',people:(e.people||[]).map(String).filter(Boolean),places:(e.places||[]).map(String).filter(Boolean),note:'',lane,links:[],imgs:[]};
+    const cat=D.cats.includes(e.cat)?e.cat:D.cats[0]||'';const lane=String(e.place??e.group??'').trim();if(lane&&!D.lanes.includes(lane))D.lanes.push(lane);
+    const n={id,year:e._y,when:e.when||'',title:String(e.title).slice(0,60),cat,imp:[1,2,3].includes(+e.imp)?+e.imp:1,desc:e.desc||'',people:(e.people||[]).map(String).filter(Boolean),places:(e.tags||e.places||[]).map(String).filter(x=>x&&x!==lane),note:'',lane,links:[],imgs:[]};
     n.people.forEach(p=>{if(!charByName(p))D.chars.push(newChar(p))});
-    if(i>0&&picked[i-1].ch!==e.ch)gapX+=90;if(D.free){n.fx=PADX+i*COLW+gapX;n.fy=baseY+40+groups.indexOf(e.group||'')*(NH+40)}
+    if(i>0&&picked[i-1].ch!==e.ch)gapX+=90;if(D.free){n.fx=PADX+i*COLW+gapX;n.fy=baseY+40+groups.indexOf(pl(e))*(NH+40)}
     D.events.push(n)});
   picked.forEach(e=>(e.causes||[]).forEach((k,ci)=>{const from=keyId[k],to=keyId[e.key];if(from&&to&&from!==to){const s=byId(from);if(!s.links.some(l=>l.to===to))s.links.push({to,label:(e.causeLabels||[])[ci]||''})}}));
   SELN=new Set(Object.values(keyId));closeM('aiModal');setView('flow');render();
@@ -1174,7 +1182,7 @@ function aiBoardText(scope){let evs=[...D.events];
   if(cs.length)L.push('\n[참여자]\n'+cs.map(c=>`- ${c.name}${c.role?` (${c.role})`:''}${c.faction?`, 소속 ${c.faction}`:''}${lifeText(c)?`, ${lifeText(c)}`:''}${c.desc?` — ${c.desc}`:''}${c.rels.length?` / 관계: `+c.rels.map(r=>`${charById(r.to)?.name||'?'}(${r.label||'관계'})`).join(', '):''}`).join('\n'));
   L.push('\n[사건 — 시간순]');
   evs.forEach(e=>{const outs=e.links.filter(l=>ids.has(l.to)).map(l=>`${byId(l.to).title}${l.label?`(${l.label})`:''}`);
-    L.push(`- ${fmtYear(e.year)}${e.when?' '+e.when:''} | ${e.title}${e.imp===3?' [핵심]':e.imp===2?' [주요]':''}${eraOf(e.year)?` | 구간: ${eraOf(e.year).name}`:''}${e.lane?` | 흐름: ${e.lane}`:''} | 분류: ${e.cat}${e.people.length?` | 등장: ${e.people.map(n=>{const c=charByName(n);const a=c&&ageAt(c,e.year);return n+(a?`(${a})`:'')}).join(', ')}`:''}${e.places.length?` | 장소: ${e.places.join(', ')}`:''}${e.desc?`\n  내용: ${e.desc.replace(/\n/g,' ')}`:''}${e.note?`\n  메모: ${e.note}`:''}${outs.length?`\n  → 이어짐: ${outs.join(', ')}`:''}`)});
+    L.push(`- ${fmtYear(e.year)}${e.when?' '+e.when:''} | ${e.title}${e.imp===3?' [핵심]':e.imp===2?' [주요]':''}${eraOf(e.year)?` | 구간: ${eraOf(e.year).name}`:''}${e.lane?` | ${tx('{group}')}: ${e.lane}`:''} | 분류: ${e.cat}${e.people.length?` | 등장: ${e.people.map(n=>{const c=charByName(n);const a=c&&ageAt(c,e.year);return n+(a?`(${a})`:'')}).join(', ')}`:''}${e.places.length?` | ${tx('{tag}')}: ${e.places.join(', ')}`:''}${e.desc?`\n  내용: ${e.desc.replace(/\n/g,' ')}`:''}${e.note?`\n  메모: ${e.note}`:''}${outs.length?`\n  → 이어짐: ${outs.join(', ')}`:''}`)});
   return {text:L.join('\n'),n:evs.length}}
 async function aiWrite(){const scope=$('aoScope').value,{text,n}=aiBoardText(scope);if(!n){toast(tx('글로 만들 {item}이 없습니다'));return}
   const STY={chron:'연대기 서술 — 구간(시대)별 소제목 아래, 연도 순서대로 사건을 이어지는 문장으로 서술한다. 연도/시점을 문장 앞에 밝힌다.',synopsis:'시놉시스 — 전체 줄거리를 도입·전개·위기·절정·결말의 흐름이 느껴지게 하나의 이야기로 요약한다.',people:'인물별 정리 — 주요 인물마다 소제목을 두고 배경, 관계, 사건 흐름(나이나 시점 포함)을 서술한다.',novel:'소설풍 서술 — 3인칭 서술체로 장면감 있게 쓰되, 사실관계는 데이터 범위를 벗어나지 않는다. 대사는 최소한으로.',wiki:'위키 문서풍 — 개요, 배경, 전개(구간별), 주요 인물, 영향 순서의 섹션으로 객관적으로 서술한다.'};
@@ -1301,7 +1309,7 @@ document.querySelectorAll('#ioSeg button').forEach(b=>b.onclick=()=>{ioFmt=b.dat
 $('laneMode').onchange=e=>{F.laneMode=e.target.value;render()};
 $('worldName').oninput=e=>{D.name=e.target.value;save();document.title=(D.name||'연혁 플로우')};
 $('calName').oninput=e=>{D.cal=e.target.value.trim();save()};
-function clearFilters(){F.cats.clear();F.focus=null;F.places.clear();F.imp=1;$('q').value='';setSeg('impSeg','i','1');render()}
+function clearFilters(){F.cats.clear();F.lanes.clear();F.focus=null;F.places.clear();F.imp=1;$('q').value='';setSeg('impSeg','i','1');render()}
 function toggleSide(){$('side').classList.toggle('hide');setTimeout(syncHeaders,0)}
 if(innerWidth<760)$('side').classList.add('hide');
 
@@ -1562,7 +1570,12 @@ async function downloadText(name,text,type){
   try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);return true}catch(err){toast('다운로드할 수 없습니다 — 복사 버튼을 이용하세요');return false}}
 function downloadBoard(){const ids=usedImgs(),out={...D,images:{}};ids.forEach(id=>{if(IMG[id])out.images[id]=IMG[id]});downloadText('board.json',JSON.stringify(out))}
 addEventListener('resize',syncHeaders);
+function placeMigrate(yes){if(yes){D.events.forEach(e=>{if(e.places.length){const old=e.lane;e.lane=e.places[0];e.places=e.places.slice(1);if(old&&!e.places.includes(old))e.places.unshift(old)}});
+    const order=[];D.events.forEach(e=>{if(e.lane&&!order.includes(e.lane))order.push(e.lane)});D.lanes=order;toast(tx('{tag}의 첫 번째 값을 {group|으로/로} 옮겼습니다'))}
+  D.placeMigrated=true;$('migBar')?.remove();render()}
 render();
+if(!READONLY&&!D.placeMigrated&&D.events.some(e=>e.places.length)){const b=document.createElement('div');b.id='migBar';b.className='migbar';
+  b.innerHTML=`가로줄 묶음이 이제 <b>${esc(tx('{group}'))}</b> 개념이에요. 기존 ${esc(tx('{item}'))}의 ${esc(tx('{tag}'))} 첫 번째 값(예: 장소 이름)을 ${esc(tx('{group}'))} 칸으로 옮길까요? 원래 묶음 이름은 ${esc(tx('{tag}'))}로 남겨요.<br><button class="btn sm primary" onclick="placeMigrate(true)">옮기기</button><button class="btn sm" onclick="placeMigrate(false)">그대로 두기</button>`;document.body.appendChild(b)}
 if(READONLY){document.body.classList.add('ro');
   fetch('board.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw 0;return r.json()}).then(o=>loadView(o)).catch(()=>{$('roNote').textContent='board.json을 찾지 못했습니다 — 백업 JSON 파일을 화면에 끌어다 놓으면 미리 볼 수 있어요';render()});
 }else IDB.open().then(async ok=>{idbOK=ok;const all=await IDB.all();Object.assign(IMG,all);
