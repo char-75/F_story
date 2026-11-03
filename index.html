@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>연혁 플로우 — 뷰어</title>
+<title>관계 플로우 — 뷰어</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600;800&display=swap" rel="stylesheet">
 <style>
@@ -244,6 +244,16 @@ body.ro .viewport{cursor:grab}
 .ctx-row em{font-style:normal;font-size:12px;color:var(--sub);width:40px;flex:none}
 .ctx-ic{border:none;background:transparent;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:15px;color:var(--ink)}
 .ctx-ic:hover{background:var(--accent-soft)}
+.aip h4{margin:12px 0 6px;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+.aip .ai-row{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border-radius:7px;font-size:13px}
+.aip .ai-row:hover{background:#f6f1ea}
+.aip .ai-row input{margin-top:3px;accent-color:var(--accent)}
+.aip .ai-row .yr{font-family:'Noto Serif KR',serif;font-weight:600;width:52px;flex:none}
+.aip .ai-row .sub{display:block;font-size:12px;color:var(--sub);line-height:1.5}
+.aip .badge{font-size:10px;border-radius:4px;padding:0 5px;background:#eee6da;color:var(--sub);margin-left:4px}
+.aip .list{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff}
+.era-zone{position:absolute;border:1.5px dashed var(--ec);border-radius:14px;background:color-mix(in srgb,var(--ec) 6%,transparent);pointer-events:none}
+.era-zone span{position:absolute;left:12px;top:8px;font-size:12px;font-weight:700;color:#fff;background:var(--ec);border-radius:6px;padding:2px 9px;pointer-events:auto;cursor:pointer;white-space:nowrap}
 .tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;z-index:150;display:none;max-width:280px;line-height:1.5;white-space:pre-wrap}
 .modal-bg{position:fixed;inset:0;background:rgba(20,16,12,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
 .modal-bg.show{display:flex}
@@ -277,6 +287,7 @@ body.ro .viewport{cursor:grab}
   <button class="btn" onclick="openEra()" data-t="＋ {era}"></button>
   <button class="btn" onclick="openChar()" data-t="＋ {who}"></button>
   <button class="btn primary" onclick="openEvent()" data-t="＋ {item}"></button>
+  <button class="btn" id="aiBtn" onclick="openAI()" style="display:none">✦ AI 도구</button>
   <button class="btn" onclick="openIO()">저장 / 불러오기</button>
   <span class="meta ro-only" id="roNote"></span>
   <button class="btn ro-only" onclick="openFileView()">JSON 열기</button>
@@ -474,6 +485,33 @@ body.ro .viewport{cursor:grab}
   </div>
 </div>
 
+<div class="modal-bg" id="aiModal"><div class="modal" style="max-width:760px">
+  <h2>✦ AI 도구</h2>
+  <div class="seg" id="aiSeg" style="margin:-4px 0 12px"><button data-a="in" class="on">글에서 불러오기</button><button data-a="out">글로 내보내기</button></div>
+  <div id="aiIn">
+    <p class="hint" style="margin-top:0" data-t="소설·시나리오·기록 등 본문을 붙여 넣으면 Claude가 읽고 {item}, {who}, 관계선, {era}으로 나눠 줍니다. 결과를 확인한 뒤 고른 것만 보드에 추가해요."></p>
+    <div class="field"><textarea id="aiText" style="min-height:200px" placeholder="여기에 본문을 붙여 넣으세요 (텍스트 파일을 끌어다 놓아도 됩니다)"></textarea><div class="hint" id="aiCount"></div></div>
+    <div class="row3">
+      <div class="field"><label>나누는 정도</label><select id="aiGrain"><option value="6">굵게 (큰 사건 위주)</option><option value="12" selected>보통</option><option value="20">자세히</option></select></div>
+      <div class="field"><label>연도가 없을 때 시작 번호</label><input id="aiStart" type="number" value="1"></div>
+      <div class="field"><label>추가 요청 (선택)</label><input id="aiHint" placeholder="예: 리아 중심으로"></div>
+    </div>
+    <div class="actions" style="margin:0 0 10px"><span class="hint left" id="aiInStatus"></span><button class="btn" id="aiInStop" style="display:none" onclick="aiStop()">중지</button><button class="btn primary" id="aiInGo" onclick="aiAnalyze()">분석하기</button></div>
+    <div id="aiPreview"></div>
+  </div>
+  <div id="aiOut" style="display:none">
+    <div class="row3">
+      <div class="field"><label>범위</label><select id="aoScope"></select></div>
+      <div class="field"><label>형식</label><select id="aoStyle"><option value="chron">연대기 서술</option><option value="synopsis">시놉시스 (줄거리)</option><option value="people">인물별 정리</option><option value="novel">소설풍 서술</option><option value="wiki">위키 문서풍</option></select></div>
+      <div class="field"><label>분량</label><select id="aoLen"><option value="short">짧게</option><option value="mid" selected>보통</option><option value="long">자세히</option></select></div>
+    </div>
+    <div class="field"><label>추가 요청 (선택)</label><input id="aoHint" placeholder="예: 존댓말로, 결말은 숨기기, 3막 구조로"></div>
+    <div class="actions" style="margin:0 0 10px"><span class="hint left" id="aiOutStatus"></span><button class="btn" id="aiOutStop" style="display:none" onclick="aiStop()">중지</button><button class="btn primary" id="aiOutGo" onclick="aiWrite()">글 만들기</button></div>
+    <div class="field"><textarea id="aoText" style="min-height:300px;line-height:1.7" placeholder="만든 글이 여기에 나타납니다. 직접 고칠 수도 있어요."></textarea></div>
+    <div class="actions" style="margin:0"><button class="btn" onclick="aiDownload()">파일로 받기</button><button class="btn primary" onclick="copyText($('aoText').value)">복사</button></div>
+  </div>
+  <div class="actions" style="margin-top:12px"><button class="btn" onclick="closeM('aiModal')">닫기</button></div>
+</div></div>
 <div class="modal-bg" id="bulkModal"><div class="modal">
   <h2 id="bulkTitle">일괄 편집</h2><p class="hint" style="margin-top:-6px">비워 둔 칸은 바뀌지 않습니다.</p>
   <div class="row"><div class="field"><label data-t="{group} 바꾸기 (- 입력 시 비움)"></label><input id="b_lane" list="dlLanes"></div><div class="field"><label>연도 이동 (+/- 년)</label><input id="b_year" type="number" placeholder="예: 5, -2"></div></div>
@@ -751,6 +789,9 @@ function renderFlow(){
   const eraSpans=D.eras.map(er=>{const idx=COLS.map((y,i)=>[y,i]).filter(([y])=>y>=er.start&&y<=er.end).map(([,i])=>i);
     if(!idx.length)return null;const a=Math.min(...idx),b=Math.max(...idx);return {er,l:colX(a)-GAPX/2,r:colX(b)+NW+GAPX/2}}).filter(Boolean);
   if(!D.free)eraSpans.forEach(s=>h+=`<div class="era-bg" style="left:${s.l}px;width:${s.r-s.l}px;background:${s.er.color}"></div><div class="era-sep" style="left:${s.l}px"></div>`);
+  if(D.free)D.eras.forEach(er=>{const ps=D.events.filter(e=>e.year>=er.start&&e.year<=er.end&&POS[e.id]).map(e=>POS[e.id]);if(!ps.length)return;
+    const x1=Math.min(...ps.map(p=>p.x))-20,y1=Math.min(...ps.map(p=>p.y))-38,x2=Math.max(...ps.map(p=>p.x))+NW+20,y2=Math.max(...ps.map(p=>p.y))+NH+20;
+    h+=`<div class="era-zone" style="left:${x1}px;top:${y1}px;width:${x2-x1}px;height:${y2-y1}px;--ec:${er.color}"><span onclick="openEra('${er.id}')" data-tip="${esc(er.name)}\n${esc(fmtYear(er.start))} ~ ${esc(fmtYear(er.end))}${er.desc?'\n'+esc(er.desc):''}">${esc(er.name)}</span></div>`});
   if(!D.free)LANES.forEach((L,i)=>h+=`<div class="lane-bg ${i%2?'alt':''}" style="top:${L.y}px;height:${L.h}px" data-lane="${esc(L.key)}"></div>`);
   // edges
   let s=`<svg class="edges" width="${W}" height="${H}"><defs><marker id="arr" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="15" markerHeight="15" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M4,1.5 L12,7 L4,12.5" fill="none" stroke="#8a8073" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="arrh" viewBox="0 0 14 14" refX="12" refY="7" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M4,1.5 L12,7 L4,12.5" fill="none" stroke="#8a3b2a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>`;
@@ -1012,6 +1053,143 @@ function showCtx(x,y,items){const m=$('ctx');
   m.querySelectorAll('.ctx-ic').forEach(b=>b.onclick=ev=>{ev.stopPropagation();closeCtx();items[+b.dataset.i].row[+b.dataset.j].run()});
   m.classList.add('show');hideTip();const r=m.getBoundingClientRect();
   m.style.left=Math.min(x,innerWidth-r.width-8)+'px';m.style.top=Math.min(y,innerHeight-r.height-8)+'px'}
+/* ---------- AI 도구 (Claude 호출) ---------- */
+let SAMPLE=null,AICTL=null,AIRES=null;
+if(!READONLY&&window.claude?.use)window.claude.use('sample').then(sm=>{SAMPLE=sm;if(sm)$('aiBtn').style.display=''}).catch(()=>{});
+const AIERR={not_granted:'Claude 사용이 허용되지 않았습니다.',sampling_disabled:'이 계정에서는 Claude를 사용할 수 없습니다.',rate_limited:'요청이 많거나 사용량 한도에 닿았습니다. 잠시 후 다시 시도하세요.',session_expired:'다시 로그인해 주세요.',refused:'이 내용은 처리할 수 없다고 응답했습니다.',prompt_too_large:'글이 너무 깁니다. 나눠서 넣어 주세요.',invalid_json:'결과 형식을 읽지 못했습니다. 다시 시도해 주세요.',empty_completion:'결과가 비어 있습니다. 다시 시도해 주세요.',upstream_error:'연결이 끊겼습니다. 다시 시도해 주세요.'};
+const aiErr=e=>AIERR[e?.code]||('처리하지 못했습니다'+(e?.code?` (${e.code})`:''));
+function aiDownload(){downloadText(((D.name||'연혁')+'.md').replace(/[\\/:*?"<>|]/g,'_'),$('aoText').value,'text/markdown')}
+function copyText(t){navigator.clipboard.writeText(t).then(()=>toast('복사했습니다'),()=>toast('복사하지 못했습니다 — 직접 선택해 복사하세요'))}
+function openAI(){if(!SAMPLE){toast('이 화면에서는 AI 도구를 쓸 수 없습니다');return}
+  const n=[...SELN].filter(byId).length;
+  $('aoScope').innerHTML=`<option value="all">전체 (${D.events.length}개)</option>${n?`<option value="sel">선택한 ${tx('{item}')} (${n}개)</option>`:''}${D.chars.map(c=>`<option value="c:${c.id}">${esc(c.name)}의 흐름</option>`).join('')}`;
+  if(F.focus)$('aoScope').value='c:'+F.focus;else if(n)$('aoScope').value='sel';
+  aiCount();openM('aiModal')}
+document.querySelectorAll('#aiSeg button').forEach(b=>b.onclick=()=>{setSeg('aiSeg','a',b.dataset.a);$('aiIn').style.display=b.dataset.a==='in'?'':'none';$('aiOut').style.display=b.dataset.a==='out'?'':'none'});
+function aiCount(){const n=$('aiText').value.length,pl=aiPlan($('aiText').value);$('aiCount').textContent=n?`${n.toLocaleString()}자 · ${pl.chapters.length?`장 ${pl.chapters.length}개 감지 (${pl.chapters.slice(0,4).join(', ')}${pl.chapters.length>4?' …':''}) · `:'장 구분 없음 · '}${pl.chunks.length}번에 나눠 분석`:''}
+$('aiText').addEventListener('input',aiCount);
+$('aiText').addEventListener('dragover',e=>e.preventDefault());
+$('aiText').addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(!f)return;e.preventDefault();const r=new FileReader();r.onload=()=>{$('aiText').value=r.result;aiCount()};r.readAsText(f)});
+const CH_RE=/^\s*(?:#{1,6}\s*)?(?:(?:제\s*)?[0-9０-９]+\s*(?:장|화|부|편|막|권|챕터|章)|제\s*[一二三四五六七八九十百]+\s*(?:장|화|부|편|막)|第\s*[0-9一二三四五六七八九十百]+\s*[章話话部回]|chapter\s*[0-9ivxlc]+|ch\.?\s*\d+|part\s*[0-9ivx]+|episode\s*\d+|ep\.?\s*\d+|프롤로그|에필로그|prologue|epilogue|외전|서장|종장|막간)(?=$|[\s.:：\-–—)\]」』,·])/i;
+function aiPlan(t,max=9000){t=t.replace(/\r/g,'').trim();if(!t)return {chapters:[],chunks:[]};
+  const lines=t.split('\n'),heads=[];lines.forEach((l,i)=>{const x=l.trim();if(x&&x.length<=50&&(CH_RE.test(x)||/^#{1,3}\s+\S/.test(x)))heads.push(i)});
+  let parts=[];
+  if(heads.length>=2){if(heads[0]>0){const pre=lines.slice(0,heads[0]).join('\n').trim();if(pre.length>200)parts.push({title:'도입',body:pre})}
+    heads.forEach((h,k)=>parts.push({title:lines[h].trim().replace(/^#+\s*/,'').replace(/\s+/g,' '),body:lines.slice(h+1,k+1<heads.length?heads[k+1]:lines.length).join('\n').trim()}));
+    parts=parts.filter(p=>p.body)}
+  const chapters=parts.map(p=>p.title),src=parts.length?parts:[{title:'',body:t}],chunks=[];
+  src.forEach((p,ci)=>{const paras=p.body.split(/\n/);let cur='';const push=x=>{if(x.trim())chunks.push({text:x,ch:parts.length?ci:-1})};
+    for(const q of paras){if((cur+'\n'+q).length>max&&cur){push(cur);cur=''}if(q.length>max){for(let k=0;k<q.length;k+=max)push(q.slice(k,k+max));continue}cur+=(cur?'\n':'')+q}push(cur)});
+  return {chapters,chunks}}
+function aiStop(){AICTL?.abort()}
+function aiBusy(kind,on,msg){$(kind==='in'?'aiInGo':'aiOutGo').disabled=on;$(kind==='in'?'aiInStop':'aiOutStop').style.display=on?'':'none';if(msg!=null)$(kind==='in'?'aiInStatus':'aiOutStatus').textContent=msg}
+async function aiAnalyze(){
+  const plan=aiPlan($('aiText').value),chunks=plan.chunks;if(!chunks.length){toast('본문을 넣어 주세요');return}
+  const T=TT(),max=+$('aiGrain').value,hint=$('aiHint').value.trim();
+  AICTL=new AbortController();const sig=AICTL.signal;aiBusy('in',true,'Claude가 읽는 중…');$('aiPreview').innerHTML='';
+  const R={eras:[],chars:[],events:[],rels:[],chapters:plan.chapters};const known=()=>[...new Set([...D.chars.map(c=>c.name),...R.chars.map(c=>c.name)])];
+  try{
+    for(let i=0;i<chunks.length;i++){
+      aiBusy('in',true,`Claude가 읽는 중… (${i+1}/${chunks.length})`);
+      const prev=R.events.slice(-30).map(e=>`${e.key}: ${e.title}`).join('\n')||'(없음)';
+      const prompt=`너는 소설·시나리오·기록 글에서 연혁(타임라인) 데이터를 뽑는 도우미다. 아래 [본문]을 읽고 사건 단위로 나눠라.
+규칙:
+- 이야기 흐름상 의미 있는 사건(장면 전환, 결정, 갈등, 결과)만. 이번 본문에서 최대 ${max}개.
+- key: "k${i+1}_순번" 형식. order: 이번 본문 안의 이야기 순서(1부터).
+- year: 본문에서 연도를 알 수 있을 때만 정수(연호: ${D.cal||'없음'}), 모르면 null. when: "봄", "사흘 뒤" 같은 세부 시점, 없으면 "".
+- title: 15자 안팎 제목. desc: 1~3문장 요약(원문을 길게 옮기지 말고 요약).
+- people: 이 사건에 직접 나오는 인물 이름. 아래 [기존 인물]과 같은 인물이면 반드시 그 이름 그대로.
+- places: 장소 이름. cat: 다음 중 하나 ${JSON.stringify(D.cats)}. imp: 1 보통, 2 주요, 3 핵심 전환점.
+- group: 사건이 속한 흐름 줄기(인물·세력·지역 등). 기존 값 ${JSON.stringify(D.lanes)} 중 맞으면 재사용, 없으면 짧게 새로.
+- causes: 이 사건을 직접 일으킨 이전 사건의 key 배열(이번 본문 또는 [이전 사건]의 key). 관계 이름이 분명하면 causeLabels에 같은 순서로.
+- characters: 이번 본문의 주요 인물 {name, role(주인공/조연/적대자 등), faction, desc(1문장), born(알 수 있으면 연도, 아니면 null)}.
+- relations: 인물 관계 {a, b, label}. eras: 큰 시대 구분이 본문에 분명할 때만 {name, desc}${chunks[i].ch>=0?' (장 구분은 이미 처리하므로 장 이름은 넣지 말 것)':''}.
+${hint?'- 사용자 요청: '+hint+'\n':''}JSON 하나로만 답하라. 예:
+{"events":[{"key":"k${i+1}_1","order":1,"year":null,"when":"","title":"국경 마을의 밤","desc":"…","people":["리아"],"places":["헤센"],"cat":"${D.cats[0]||'시작'}","imp":2,"group":"주인공","causes":[],"causeLabels":[]}],"characters":[{"name":"리아","role":"주인공","faction":"","desc":"…","born":null}],"relations":[{"a":"리아","b":"카엘","label":"동료"}],"eras":[]}
+
+[기존 인물] ${known().join(', ')||'(없음)'}
+[이전 사건]
+${prev}
+
+[본문 ${i+1}/${chunks.length}${chunks[i].ch>=0?' — '+plan.chapters[chunks[i].ch]:''}]
+${chunks[i].text}`;
+      const j=await SAMPLE.json(prompt,{signal:sig});
+      (j?.events||[]).forEach(e=>{if(e&&e.title)R.events.push({...e,key:String(e.key||`k${i+1}_${R.events.length+1}`),chunk:i,ch:chunks[i].ch,order:+e.order||0})});
+      (j?.characters||[]).forEach(c=>{if(!c?.name)return;const o=R.chars.find(x=>x.name===c.name);if(o){for(const k of ['role','faction','desc'])if(!o[k]&&c[k])o[k]=c[k];if(o.born==null&&c.born!=null)o.born=c.born}else R.chars.push({...c})});
+      (j?.relations||[]).forEach(r=>{if(r?.a&&r?.b&&!R.rels.some(x=>x.a===r.a&&x.b===r.b))R.rels.push(r)});
+      if(!R.chapters.length)(j?.eras||[]).forEach(r=>{if(r?.name&&!R.eras.some(x=>x.name===r.name))R.eras.push({...r,chunk:i})});
+      aiRenderPreview(R,i+1<chunks.length);
+    }
+    aiBusy('in',false,`${R.events.length}개 ${tx('{item|을/를}')} 찾았습니다. 확인 후 보드에 추가하세요.`);
+  }catch(e){aiBusy('in',false,e?.code==='cancelled'?'중지했습니다.'+(R.events.length?' 지금까지 찾은 결과는 아래에 있어요.':''):aiErr(e));if(R.events.length)aiRenderPreview(R,false)}
+}
+function aiYears(R){const ev=[...R.events].sort((a,b)=>a.chunk-b.chunk||a.order-b.order);const has=ev.some(e=>Number.isFinite(+e.year)&&e.year!==null);let s=+$('aiStart').value||1;
+  if(!has)ev.forEach((e,i)=>e._y=s+i);else{let last=null;ev.forEach(e=>{if(e.year!==null&&Number.isFinite(+e.year))last=Math.round(+e.year);e._y=last});const first=ev.find(e=>e._y!=null)?._y;ev.forEach(e=>{if(e._y==null)e._y=first})}
+  return ev}
+function aiRenderPreview(R,more){AIRES=R;const ev=aiYears(R);
+  const chars=R.chars.map((c,i)=>({...c,i,exists:!!charByName(c.name)}));
+  $('aiPreview').innerHTML=`<div class="aip">
+   <h4><span>${tx('{item}')} ${ev.length}개${more?' (계속 읽는 중…)':''}</span><label class="hint"><input type="checkbox" checked onchange="document.querySelectorAll('.ai-ev').forEach(c=>c.checked=this.checked)"> 전체</label></h4>
+   <div class="list">${ev.map((e,k)=>`${R.chapters.length&&e.ch>=0&&(k===0||ev[k-1].ch!==e.ch)?`<div class="hint" style="padding:6px 8px 2px;font-weight:700;color:var(--ink)">${esc(R.chapters[e.ch])}</div>`:''}<label class="ai-row"><input type="checkbox" class="ai-ev" data-k="${esc(e.key)}" checked><span class="yr">${shortYear(e._y)}</span><span style="flex:1"><b>${e.imp==3?'★ ':''}${esc(e.title)}</b>${e.group?`<span class="badge">${esc(e.group)}</span>`:''}${(e.causes||[]).length?`<span class="badge">← ${(e.causes||[]).length}</span>`:''}<span class="sub">${esc([(e.people||[]).join(', '),(e.places||[]).join(', ')].filter(Boolean).join(' · '))}${e.desc?' — '+esc(e.desc):''}</span></span></label>`).join('')}</div>
+   ${chars.length?`<h4><span>${tx('{who}')} ${chars.length}명</span></h4><div class="list" style="max-height:160px">${chars.map(c=>`<label class="ai-row"><input type="checkbox" class="ai-ch" data-i="${c.i}" checked><span style="flex:1"><b>${esc(c.name)}</b>${c.exists?'<span class="badge">기존 · 빈 정보만 채움</span>':''}${c.role?`<span class="badge">${esc(c.role)}</span>`:''}<span class="sub">${esc(c.desc||'')}</span></span></label>`).join('')}</div>`:''}
+   ${R.chapters.length?`<h4><span>장 → ${tx('{era}')} ${R.chapters.length}개</span></h4><div class="list" style="max-height:140px">${R.chapters.map((t,ci)=>{const n=ev.filter(e=>e.ch===ci).length;return `<label class="ai-row"><input type="checkbox" class="ai-cp" data-ch="${ci}" ${n?'checked':'disabled'}><span style="flex:1"><b>${esc(t)}</b><span class="badge">${tx('{item}')} ${n}개</span></span></label>`}).join('')}</div>`:''}
+   ${R.eras.length?`<h4><span>${tx('{era}')} ${R.eras.length}개</span></h4><div class="list" style="max-height:100px">${R.eras.map((r,i)=>`<label class="ai-row"><input type="checkbox" class="ai-er" data-i="${i}" ${D.eras.some(x=>x.name===r.name)?'disabled':'checked'}><span style="flex:1"><b>${esc(r.name)}</b>${D.eras.some(x=>x.name===r.name)?'<span class="badge">이미 있음</span>':''}<span class="sub">${esc(r.desc||'')}</span></span></label>`).join('')}</div>`:''}
+   <p class="hint">관계선 ${ev.reduce((s,e)=>s+(e.causes||[]).length,0)}개 · ${tx('{who}')} 관계 ${R.rels.length}개가 함께 추가됩니다 (선택한 것끼리만).</p>
+   <div class="actions" style="margin:0"><button class="btn primary" onclick="aiApply()" ${more?'disabled':''}>선택한 것 보드에 추가</button></div></div>`}
+function aiApply(){const R=AIRES;if(!R)return;const ev=aiYears(R);
+  const pickE=new Set([...document.querySelectorAll('.ai-ev:checked')].map(c=>c.dataset.k)),pickC=new Set([...document.querySelectorAll('.ai-ch:checked')].map(c=>+c.dataset.i));
+  // 구간
+  const yrs=ev.filter(e=>pickE.has(e.key)).map(e=>e._y);
+  [...document.querySelectorAll('.ai-er:checked')].forEach(c=>{const r=R.eras[+c.dataset.i];const inChunk=ev.filter(e=>e.chunk>=r.chunk&&pickE.has(e.key)).map(e=>e._y);
+    const nextEra=R.eras.find(x=>x.chunk>r.chunk);const lim=nextEra?ev.filter(e=>e.chunk<nextEra.chunk&&e.chunk>=r.chunk).map(e=>e._y):inChunk;
+    if(lim.length)D.eras.push({id:uid(),name:r.name,start:Math.min(...lim),end:Math.max(...lim),color:PAL[(D.eras.length+2)%PAL.length],desc:r.desc||''})});
+  [...document.querySelectorAll('.ai-cp:checked')].forEach(c=>{const ci=+c.dataset.ch,lim=ev.filter(e=>e.ch===ci&&pickE.has(e.key)).map(e=>e._y);
+    if(lim.length)D.eras.push({id:uid(),name:R.chapters[ci],start:Math.min(...lim),end:Math.max(...lim),color:PAL[(D.eras.length+2)%PAL.length],desc:''})});
+  // 참여자
+  R.chars.forEach((c,i)=>{if(!pickC.has(i))return;const o=charByName(c.name);
+    if(o){if(!o.role&&c.role)o.role=c.role;if(!o.faction&&c.faction)o.faction=c.faction;if(!o.desc&&c.desc)o.desc=c.desc;if((o.born==null||o.born==='')&&Number.isFinite(+c.born)&&c.born!==null)o.born=Math.round(+c.born)}
+    else{const n=newChar(c.name);n.role=c.role||'';n.faction=c.faction||'';n.desc=c.desc||'';if(Number.isFinite(+c.born)&&c.born!==null)n.born=Math.round(+c.born);D.chars.push(n)}});
+  R.rels.forEach(r=>{const a=charByName(r.a),b=charByName(r.b);if(a&&b&&a!==b&&!a.rels.some(x=>x.to===b.id))a.rels.push({to:b.id,label:r.label||''})});
+  // 항목 + 배치
+  const keyId={},picked=ev.filter(e=>pickE.has(e.key));
+  let baseY=LPAD;Object.values(POS).forEach(p=>baseY=Math.max(baseY,p.y+NH+90));
+  const groups=[...new Set(picked.map(e=>e.group||''))];let gapX=0;
+  picked.forEach((e,i)=>{const id=uid();keyId[e.key]=id;
+    const cat=D.cats.includes(e.cat)?e.cat:D.cats[0]||'';const lane=(e.group||'').trim();if(lane&&!D.lanes.includes(lane))D.lanes.push(lane);
+    const n={id,year:e._y,when:e.when||'',title:String(e.title).slice(0,60),cat,imp:[1,2,3].includes(+e.imp)?+e.imp:1,desc:e.desc||'',people:(e.people||[]).map(String).filter(Boolean),places:(e.places||[]).map(String).filter(Boolean),note:'',lane,links:[],imgs:[]};
+    n.people.forEach(p=>{if(!charByName(p))D.chars.push(newChar(p))});
+    if(i>0&&picked[i-1].ch!==e.ch)gapX+=90;if(D.free){n.fx=PADX+i*COLW+gapX;n.fy=baseY+40+groups.indexOf(e.group||'')*(NH+40)}
+    D.events.push(n)});
+  picked.forEach(e=>(e.causes||[]).forEach((k,ci)=>{const from=keyId[k],to=keyId[e.key];if(from&&to&&from!==to){const s=byId(from);if(!s.links.some(l=>l.to===to))s.links.push({to,label:(e.causeLabels||[])[ci]||''})}}));
+  SELN=new Set(Object.values(keyId));closeM('aiModal');setView('flow');render();
+  const first=picked[0]&&keyId[picked[0].key];if(first)setTimeout(()=>jumpEv(first),80);
+  toast(`${picked.length}개 ${tx('{item|을/를}')} 추가했습니다 — 선택된 상태라 바로 정리·이동할 수 있어요`);AIRES=null;$('aiPreview').innerHTML='';$('aiInStatus').textContent=''}
+function aiBoardText(scope){let evs=[...D.events];
+  if(scope==='sel')evs=evs.filter(e=>SELN.has(e.id));else if(scope.startsWith('c:')){const c=charById(scope.slice(2));evs=evs.filter(e=>c&&e.people.includes(c.name))}
+  evs.sort((a,b)=>a.year-b.year||((POS[a.id]?.x||0)-(POS[b.id]?.x||0)));const ids=new Set(evs.map(e=>e.id));
+  const names=new Set(evs.flatMap(e=>e.people));if(scope.startsWith('c:')){const c=charById(scope.slice(2));if(c)names.add(c.name)}
+  const L=[];L.push(`보드 이름: ${D.name||'(없음)'} / 연호: ${D.cal||'(없음)'}`);
+  if(D.eras.length)L.push('\n[구간]\n'+D.eras.map(r=>`- ${r.name}: ${fmtYear(r.start)} ~ ${fmtYear(r.end)}${r.desc?' — '+r.desc:''}`).join('\n'));
+  const cs=D.chars.filter(c=>names.has(c.name));
+  if(cs.length)L.push('\n[참여자]\n'+cs.map(c=>`- ${c.name}${c.role?` (${c.role})`:''}${c.faction?`, 소속 ${c.faction}`:''}${lifeText(c)?`, ${lifeText(c)}`:''}${c.desc?` — ${c.desc}`:''}${c.rels.length?` / 관계: `+c.rels.map(r=>`${charById(r.to)?.name||'?'}(${r.label||'관계'})`).join(', '):''}`).join('\n'));
+  L.push('\n[사건 — 시간순]');
+  evs.forEach(e=>{const outs=e.links.filter(l=>ids.has(l.to)).map(l=>`${byId(l.to).title}${l.label?`(${l.label})`:''}`);
+    L.push(`- ${fmtYear(e.year)}${e.when?' '+e.when:''} | ${e.title}${e.imp===3?' [핵심]':e.imp===2?' [주요]':''}${eraOf(e.year)?` | 구간: ${eraOf(e.year).name}`:''}${e.lane?` | 흐름: ${e.lane}`:''} | 분류: ${e.cat}${e.people.length?` | 등장: ${e.people.map(n=>{const c=charByName(n);const a=c&&ageAt(c,e.year);return n+(a?`(${a})`:'')}).join(', ')}`:''}${e.places.length?` | 장소: ${e.places.join(', ')}`:''}${e.desc?`\n  내용: ${e.desc.replace(/\n/g,' ')}`:''}${e.note?`\n  메모: ${e.note}`:''}${outs.length?`\n  → 이어짐: ${outs.join(', ')}`:''}`)});
+  return {text:L.join('\n'),n:evs.length}}
+async function aiWrite(){const scope=$('aoScope').value,{text,n}=aiBoardText(scope);if(!n){toast(tx('글로 만들 {item}이 없습니다'));return}
+  const STY={chron:'연대기 서술 — 구간(시대)별 소제목 아래, 연도 순서대로 사건을 이어지는 문장으로 서술한다. 연도/시점을 문장 앞에 밝힌다.',synopsis:'시놉시스 — 전체 줄거리를 도입·전개·위기·절정·결말의 흐름이 느껴지게 하나의 이야기로 요약한다.',people:'인물별 정리 — 주요 인물마다 소제목을 두고 배경, 관계, 사건 흐름(나이나 시점 포함)을 서술한다.',novel:'소설풍 서술 — 3인칭 서술체로 장면감 있게 쓰되, 사실관계는 데이터 범위를 벗어나지 않는다. 대사는 최소한으로.',wiki:'위키 문서풍 — 개요, 배경, 전개(구간별), 주요 인물, 영향 순서의 섹션으로 객관적으로 서술한다.'};
+  const LEN={short:'800자 안팎',mid:'2,000자 안팎',long:'4,000자 이상, 충분히 자세히'};
+  const hint=$('aoHint').value.trim();
+  const prompt=`아래는 사용자가 정리한 연혁 보드 데이터다. 이를 바탕으로 한국어 글을 써라.
+형식: ${STY[$('aoStyle').value]}
+분량: ${LEN[$('aoLen').value]}
+규칙: 데이터에 없는 사건이나 설정을 새로 지어내지 말 것(사건 사이를 자연스럽게 잇는 서술은 허용). 시간 순서를 따를 것. 마크다운 제목과 문단을 써도 된다. 글 본문만 출력하고 앞뒤 설명은 붙이지 말 것.
+${hint?'사용자 요청: '+hint+'\n':''}
+${text}`;
+  AICTL=new AbortController();aiBusy('out',true,'Claude가 쓰는 중…');$('aoText').value='';
+  try{const r=await SAMPLE(prompt,{signal:AICTL.signal,cache:false,onText:({text})=>{$('aoText').value=text;$('aoText').scrollTop=$('aoText').scrollHeight}});
+    $('aoText').value=r.text;aiBusy('out',false,r.truncated?'길이 제한으로 중간에 끊겼습니다. 범위를 줄이거나 분량을 줄여 보세요.':'완성했습니다. 직접 고친 뒤 복사하거나 파일로 받을 수 있어요.')}
+  catch(e){if(e?.text)$('aoText').value=e.text;aiBusy('out',false,e?.code==='cancelled'?'중지했습니다.':aiErr(e))}}
 let SELN=new Set(),spaceDown=false;
 function toggleSel(id){SELN.has(id)?SELN.delete(id):SELN.add(id);SELN=new Set(SELN);renderFlow()}
 function updateSelBar(){const b=$('selBar');if(!b)return;const n=[...SELN].filter(id=>byId(id)).length;b.style.display=n?'':'none';if(n)b.innerHTML=`${n}개 선택됨 · 우클릭으로 편집 <button class="btn ghost sm" onclick="SELN=new Set();renderFlow()">선택 해제</button>`}
