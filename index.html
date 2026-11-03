@@ -214,7 +214,7 @@ svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
 .edge-bar input{border:1px solid var(--line);border-radius:6px;padding:3px 7px;width:130px;font-size:12px}
 .ro-only{display:none}
 body.ro .ro-only{display:inline-flex}
-body.ro header>.btn:not(.ro-only):not(.ghost),body.ro header .btn.ghost[onclick="openTerms()"],body.ro #arrSeg,body.ro #tidyBtn,body.ro #resetPosBtn,body.ro #laneEditBtn,body.ro .char-row .ed,body.ro .card h3 .btn,body.ro .port,body.ro .empty .btn,body.ro #helpbox{display:none !important}
+body.ro header>.btn:not(.ro-only):not(.ghost),body.ro header .btn.ghost[onclick="openTerms()"],body.ro #arrSeg,body.ro #tidyBtn,body.ro #seqBtn,body.ro #resetPosBtn,body.ro #laneEditBtn,body.ro .char-row .ed,body.ro .card h3 .btn,body.ro .port,body.ro .empty .btn,body.ro #helpbox{display:none !important}
 body.ro #worldName,body.ro #calName{pointer-events:none}
 body.ro .title-wrap .meta{display:none}
 body.ro .node{cursor:pointer}
@@ -256,6 +256,7 @@ body.ro .viewport{cursor:grab}
 .era-zone span{position:absolute;left:12px;top:8px;font-size:12px;font-weight:700;color:#fff;background:var(--ec);border-radius:6px;padding:2px 9px;pointer-events:auto;cursor:pointer;white-space:nowrap}
 .migbar{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:120;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:12px 16px;font-size:13px;max-width:min(760px,92vw);line-height:1.6}
 .migbar .btn{margin:8px 6px 0 0}
+.yr-span{position:absolute;top:50px;height:4px;border:1px solid #c9bfb1;border-top:none;border-radius:0 0 4px 4px}
 .tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;z-index:150;display:none;max-width:280px;line-height:1.5;white-space:pre-wrap}
 .modal-bg{position:fixed;inset:0;background:rgba(20,16,12,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
 .modal-bg.show{display:flex}
@@ -315,6 +316,7 @@ body.ro .viewport{cursor:grab}
       </label>
       <button class="btn sm" id="laneEditBtn" onclick="editList('lanes')" data-t="{group} 편집"></button>
       <div class="seg" id="arrSeg" title="배치 방식"><button data-a="free">자유 배치</button><button data-a="auto">연도순 자동</button></div>
+      <button class="btn sm" id="seqBtn" onclick="seqTidy()" title="사건 순서대로 왼쪽→오른쪽 배열 (적용 전 미리보기)">⇢ 사건순 가로 배열</button>
       <button class="btn sm primary" id="tidyBtn" onclick="openTidy()">정리하기</button>
       <button class="btn sm" id="resetPosBtn" onclick="resetPos(this)" style="display:none">연도순으로 재배치</button>
       <div class="seg" id="impSeg"><button data-i="1" class="on">전체</button><button data-i="2">주요</button><button data-i="3">핵심</button></div>
@@ -334,8 +336,8 @@ body.ro .viewport{cursor:grab}
       <div class="selbar" id="selBar" style="display:none"></div>
       <div class="tidy" id="tidy">
         <h4>정리하기 <span class="hint">지금 위치를 기준으로 정돈합니다</span></h4>
-        <label>가로 정렬<select id="td_h"><option value="order">순서 유지 · 균등 간격</option><option value="time">연도 비례 간격</option><option value="keep">현재 위치 유지</option></select></label>
-        <label>세로 정렬<select id="td_v"><option value="rows">가까운 줄끼리 맞춤</option><option value="group" data-t="{group}별로 모으기"></option><option value="keep">현재 위치 유지</option></select></label>
+        <label>가로 정렬<select id="td_h"><option value="seq">사건 순서 · 균등 간격</option><option value="order">현재 좌우 순서 유지 · 균등 간격</option><option value="time">연도 비례 간격</option><option value="keep">현재 위치 유지</option></select></label>
+        <label>세로 정렬<select id="td_v"><option value="line">한 줄로</option><option value="rows">가까운 줄끼리 맞춤</option><option value="group" data-t="{group}별로 모으기"></option><option value="keep">현재 위치 유지</option></select></label>
         <label>정렬 강도<input type="range" id="td_p" min="0" max="100" step="5" value="100"><b id="td_pv">100%</b></label>
         <label>간격<input type="range" id="td_g" min="60" max="200" step="5" value="100"><b id="td_gv">100%</b></label>
         <p class="hint" style="margin:2px 0 8px">강도 0%는 지금 그대로, 100%는 완전히 정렬된 상태입니다. 움직이면 바로 미리 보여요.</p>
@@ -625,22 +627,23 @@ function layout(){
   D.eras.forEach(er=>{if(!evs.some(e=>e.year>=er.start&&e.year<=er.end))ys.add(er.start)});
   COLS=[...ys].sort((a,b)=>a-b);
   const ci=new Map(COLS.map((y,i)=>[y,i]));
-  // stack counts
-  const cell={};
-  evs.forEach(e=>{const k=laneKey(e)+'|'+e.year;(cell[k]=cell[k]||[]).push(e)});
-  Object.values(cell).forEach(a=>a.sort((x,y)=>(x.ord??1e9)-(y.ord??1e9)));
-  let y=0; LANES=base.map(k=>{
-    let rows=1; COLS.forEach(c=>{const n=(cell[k+'|'+c]||[]).length;if(n>rows)rows=n});
-    const h=LPAD*2+rows*NH+(rows-1)*ROWG; const L={key:k,y,h,count:evs.filter(e=>laneKey(e)===k).length}; y+=h; return L;
-  });
+  // 같은 연도는 위아래로 쌓지 않고 진행 순서대로 옆으로
+  const seq=[...evs].sort((a,b)=>a.year-b.year||(a.ord??1e9)-(b.ord??1e9));
+  const cnt={};seq.forEach(e=>cnt[e.year]=(cnt[e.year]||0)+1);
+  COLX=[];COLN=[];let cx=PADX;COLS.forEach(y=>{COLX.push(cx);const n=Math.max(1,cnt[y]||0);COLN.push(n);cx+=n*COLW});
+  let y=0; LANES=base.map(k=>{const h=LPAD*2+NH;const L={key:k,y,h,count:evs.filter(e=>laneKey(e)===k).length};y+=h;return L});
+  const lmap=new Map(LANES.map(L=>[L.key,L])),rank={};
   POS={};
-  LANES.forEach(L=>COLS.forEach(c=>(cell[L.key+'|'+c]||[]).forEach((e,i)=>{POS[e.id]={x:PADX+ci.get(c)*COLW,y:L.y+LPAD+i*(NH+ROWG)}})));
-  let W=PADX*2+Math.max(COLS.length,1)*COLW-GAPX, H=Math.max(y,200);
+  seq.forEach(e=>{const r=rank[e.year]=(rank[e.year]??-1)+1;const L=lmap.get(laneKey(e));POS[e.id]={x:COLX[ci.get(e.year)]+r*COLW,y:L.y+LPAD}});
+  let W=Math.max(cx,PADX+COLW)+PADX-GAPX, H=Math.max(y,200);
   if(D.free){D.events.forEach(e=>{if(e.fx!=null&&e.fy!=null)POS[e.id]={x:e.fx,y:e.fy}});if(PREVIEW)Object.entries(PREVIEW).forEach(([id,p])=>{if(POS[id])POS[id]=p});
     Object.values(POS).forEach(p=>{W=Math.max(W,p.x+NW+PADX+COLW);H=Math.max(H,p.y+NH+120)});}
   return {W,H};
 }
-const colX=i=>PADX+i*COLW;
+let COLX=[],COLN=[];
+const colX=i=>COLX[i]??(PADX+i*COLW);
+const colW=i=>(COLN[i]||1)*COLW-GAPX;
+const colEnd=()=>COLS.length?colX(COLS.length-1)+colW(COLS.length-1):PADX;
 
 /* ---------- render ---------- */
 function render(){
@@ -795,7 +798,7 @@ function renderFlow(){
   let h='';
   // era backgrounds
   const eraSpans=D.eras.map(er=>{const idx=COLS.map((y,i)=>[y,i]).filter(([y])=>y>=er.start&&y<=er.end).map(([,i])=>i);
-    if(!idx.length)return null;const a=Math.min(...idx),b=Math.max(...idx);return {er,l:colX(a)-GAPX/2,r:colX(b)+NW+GAPX/2}}).filter(Boolean);
+    if(!idx.length)return null;const a=Math.min(...idx),b=Math.max(...idx);return {er,l:colX(a)-GAPX/2,r:colX(b)+colW(b)+GAPX/2}}).filter(Boolean);
   if(!D.free)eraSpans.forEach(s=>h+=`<div class="era-bg" style="left:${s.l}px;width:${s.r-s.l}px;background:${s.er.color}"></div><div class="era-sep" style="left:${s.l}px"></div>`);
   if(D.free)D.eras.forEach(er=>{const ps=D.events.filter(e=>e.year>=er.start&&e.year<=er.end&&POS[e.id]).map(e=>POS[e.id]);if(!ps.length)return;
     const x1=Math.min(...ps.map(p=>p.x))-20,y1=Math.min(...ps.map(p=>p.y))-38,x2=Math.max(...ps.map(p=>p.x))+NW+20,y2=Math.max(...ps.map(p=>p.y))+NH+20;
@@ -830,7 +833,7 @@ function renderFlow(){
   // top header
   let t='';
   eraSpans.forEach(sp=>t+=`<div class="era-tag" data-x0="${sp.l+3}" data-w="${sp.r-sp.l-6}" style="background:${sp.er.color}" onclick="openEra('${sp.er.id}')" data-tip="${esc(sp.er.name)}\n${esc(fmtYear(sp.er.start))} ~ ${esc(fmtYear(sp.er.end))}${sp.er.desc?'\n'+esc(sp.er.desc):''}">${esc(sp.er.name)}</div>`);
-  COLS.forEach((y,i)=>{t+=`<div class="yr-tick" data-x0="${colX(i)+NW/2}">${shortYear(y)}</div>`;
+  COLS.forEach((y,i)=>{t+=`<div class="yr-tick" data-x0="${colX(i)+colW(i)/2}">${shortYear(y)}${COLN[i]>1?` <small style="font-family:Noto Sans KR;font-weight:400;color:var(--sub)">· ${COLN[i]}개</small>`:''}</div>`;if(COLN[i]>1)t+=`<div class="yr-span" data-x0="${colX(i)}" data-w="${colW(i)}"></div>`;
     if(i>0){const g=y-COLS[i-1];t+=`<div class="gap-tick" data-x0="${colX(i)-GAPX/2}">+${g.toLocaleString()}년</div>`}});
   if(D.free)t=READONLY?`<div class="free-note">항목을 클릭하면 상세 내용을 볼 수 있어요 · 화면을 끌어 이동 · Ctrl+휠 또는 오른쪽 아래 버튼으로 확대</div>`:`<div class="free-note">자유 배치 중 — 노드를 원하는 곳에 끌어다 두세요. 연도는 각 노드에 표시됩니다. · 정리하기로 한 번에 정돈할 수 있어요</div>`;
   $('topInner').innerHTML=t;
@@ -849,6 +852,7 @@ function applyZoom(){
 function syncHeaders(){
   const vp=$('vp'),sl=vp.scrollLeft,st=vp.scrollTop;
   document.querySelectorAll('#topInner [data-x0]').forEach(el=>{const x=+el.dataset.x0*Z-sl;
+    if(el.classList.contains('yr-span')){el.style.left=x+'px';el.style.width=(+el.dataset.w*Z)+'px';return}
     if(el.classList.contains('era-tag')){const w=+el.dataset.w*Z;let l=x,r=x+w;const vis=Math.max(l,4);el.style.left=vis+'px';el.style.width=Math.max(r-vis,0)+'px';el.style.display=r-vis<16?'none':''}
     else el.style.left=x+'px'});
   document.querySelectorAll('#laneInner [data-y0]').forEach(el=>{el.style.top=(+el.dataset.y0*Z-st)+'px';el.style.height=(+el.dataset.h*Z)+'px'});
@@ -865,23 +869,26 @@ $('vp').addEventListener('wheel',e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventD
 
 function toCanvas(cx,cy){const r=$('canvas').getBoundingClientRect();return {x:(cx-r.left)/Z,y:(cy-r.top)/Z}}
 function laneAt(y){return LANES.find(L=>y>=L.y&&y<L.y+L.h)||(y<0?LANES[0]:LANES[LANES.length-1])}
-function colAt(x){if(!COLS.length)return 0;const f=(x-PADX-NW/2)/COLW;if(f>COLS.length-.5)return COLS[COLS.length-1]+1;if(f<-.5)return COLS[0]-1;return COLS[Math.round(f)]}
+function colIdxAt(x){for(let i=0;i<COLS.length;i++){if(x<colX(i)+colW(i)+GAPX/2)return x<colX(i)-GAPX/2?-1:i}return COLS.length}
+function colAt(x){if(!COLS.length)return 0;const i=colIdxAt(x);if(i>=COLS.length)return COLS[COLS.length-1]+Math.max(1,Math.round((x-colEnd())/COLW));if(i<0)return COLS[0]-Math.max(1,Math.round((colX(0)-x)/COLW));return COLS[i]}
 
 /* ---------- interactions ---------- */
 function computeDrop(ev,cx,cy,lockYear){
   let year=ev.year;
-  if(!lockYear&&COLS.length){const n=COLS.length,f=(cx-PADX-NW/2)/COLW,i=Math.round(f);
-    if(i>=0&&i<n&&Math.abs(f-i)<=.3)year=COLS[i];
-    else if(f>n-1)year=COLS[n-1]+Math.max(1,Math.round(f-(n-1)));
-    else if(f<0)year=COLS[0]-Math.max(1,Math.round(-f));
-    else{const lo=Math.floor(f),a=COLS[lo],b=COLS[lo+1],t=f-lo;year=b-a<2?(t<.5?a:b):Math.min(b-1,Math.max(a+1,Math.round(a+(b-a)*t)))}}
+  if(!lockYear&&COLS.length){const i=colIdxAt(cx);
+    if(i>=0&&i<COLS.length){year=COLS[i];
+      // 연도 경계(간격) 근처면 사이 연도
+      const lb=colX(i),rb=colX(i)+colW(i);
+      if(cx>rb+4&&i+1<COLS.length&&COLS[i+1]-COLS[i]>=2)year=Math.round((COLS[i]+COLS[i+1])/2);
+      else if(cx<lb-4&&i>0&&COLS[i]-COLS[i-1]>=2)year=Math.round((COLS[i-1]+COLS[i])/2)}
+    else year=colAt(cx)}
   const L=F.laneMode==='none'?LANES[0]:laneAt(cy);
-  const idx=L?Math.max(0,Math.round((cy-NH/2-L.y-LPAD)/(NH+ROWG))):0;
+  const ci2=COLS.indexOf(year),idx=ci2>=0?Math.max(0,Math.round((cx-NW/2-colX(ci2))/COLW)):0;
   return {year,L,idx};
 }
-function yearX(y){const i=COLS.indexOf(y);if(i>=0)return colX(i)+NW/2;const n=COLS.length;if(!n)return PADX+NW/2;
-  if(y>COLS[n-1])return colX(n-1)+NW/2+COLW*Math.min(3,y-COLS[n-1]);if(y<COLS[0])return colX(0)+NW/2-COLW*Math.min(3,COLS[0]-y);
-  let lo=0;while(COLS[lo+1]<y)lo++;const a=COLS[lo],b=COLS[lo+1];return colX(lo)+NW/2+COLW*(y-a)/(b-a)}
+function yearX(y){const i=COLS.indexOf(y);if(i>=0)return colX(i)+colW(i)/2;const n=COLS.length;if(!n)return PADX+NW/2;
+  if(y>COLS[n-1])return colEnd()+GAPX+NW/2+COLW*Math.min(3,y-COLS[n-1]-1);if(y<COLS[0])return colX(0)+NW/2-COLW*Math.min(3,COLS[0]-y);
+  let lo=0;while(COLS[lo+1]<y)lo++;return colX(lo)+colW(lo)+GAPX/2}
 function showDropHint(ev,cx,cy,lock){
   const r=computeDrop(ev,cx,cy,lock),cv=$('canvas');
   let h=$('dropHint'),g=$('dropGuide'),sl=$('dropSlot');
@@ -890,7 +897,8 @@ function showDropHint(ev,cx,cy,lock){
   const lk=r.L?r.L.key:'';const ch=r.year!==ev.year;
   h.innerHTML=`${ch?`<b>${esc(shortYear(r.year))}</b>`:esc(shortYear(r.year))}${F.laneMode!=='none'&&lk?' · '+esc(lk):''}${lock?' · 연도 고정':''}`;
   h.style.left=cx+'px';h.style.top=(cy-NH/2-6)+'px';
-  if(r.L){sl.style.display='';sl.style.left=(gx-NW/2)+'px';sl.style.width=NW+'px';sl.style.height=NH+'px';sl.style.top=(r.L.y+LPAD+r.idx*(NH+ROWG))+'px'}else sl.style.display='none';
+  const ci3=COLS.indexOf(r.year),sx=ci3>=0?colX(ci3)+Math.min(r.idx,COLN[ci3]-(r.year===ev.year?1:0))*COLW:gx-NW/2;g.style.left=(sx+NW/2)+'px';
+  if(r.L){sl.style.display='';sl.style.left=sx+'px';sl.style.width=NW+'px';sl.style.height=NH+'px';sl.style.top=(r.L.y+LPAD)+'px'}else sl.style.display='none';
 }
 function resetPos(b){confirmBtn(b,'한 번 더 누르면 재배치',()=>{b.textContent='연도순으로 재배치';D.events.forEach(e=>{delete e.fx;delete e.fy});render();toast('자동 위치로 되돌렸습니다')})}
 document.querySelectorAll('#arrSeg button').forEach(b=>b.onclick=()=>{if(TIDY)tidyCancel();D.free=b.dataset.a==='free';render();toast(D.free?'자유 배치: 노드를 원하는 곳에 둘 수 있습니다 (자리는 저장됨)':'연도순 자동: 시간 순서대로 자동 배치됩니다')});
@@ -922,12 +930,14 @@ function openTidy(){if(!D.events.length){toast('정리할 항목이 없습니다
 function tidyOpts(){return {h:$('td_h').value,v:$('td_v').value,p:+$('td_p').value/100,g:+$('td_g').value/100}}
 function tidyTargets(o){
   const S=TIDY.start,evs=D.events.filter(e=>S[e.id]),gx=COLW*o.g,gy=(NH+ROWG+10)*Math.max(.7,o.g),T={};
-  if(o.h==='order'){const arr=[...evs].sort((a,b)=>S[a.id].x-S[b.id].x||a.year-b.year);let col=-1,cx=-1e9;arr.forEach(e=>{if(S[e.id].x-cx>NW*.5){col++;cx=S[e.id].x}T[e.id]={x:PADX+col*gx}})}
+  if(o.h==='seq'){[...evs].sort((a,b)=>a.year-b.year||S[a.id].x-S[b.id].x||S[a.id].y-S[b.id].y).forEach((e,i)=>T[e.id]={x:PADX+i*gx})}
+  else if(o.h==='order'){const arr=[...evs].sort((a,b)=>S[a.id].x-S[b.id].x||a.year-b.year);let col=-1,cx=-1e9;arr.forEach(e=>{if(S[e.id].x-cx>NW*.5){col++;cx=S[e.id].x}T[e.id]={x:PADX+col*gx}})}
   else if(o.h==='time'){const ys=[...new Set(evs.map(e=>e.year))].sort((a,b)=>a-b),mn=ys[0],mx=ys[ys.length-1],span=Math.max(1,ys.length-1)*gx,X={};let prev=-1e9;ys.forEach(y=>{let x=PADX+(mx===mn?0:(y-mn)/(mx-mn)*span);x=Math.max(x,prev+NW+24*o.g);X[y]=x;prev=x});evs.forEach(e=>T[e.id]={x:X[e.year]})}
   else evs.forEach(e=>T[e.id]={x:S[e.id].x});
   if(o.v==='group'){let top=LPAD;const keys=[...LANES.map(L=>L.key)];evs.forEach(e=>{if(!keys.includes(laneKey(e)))keys.push(laneKey(e))});
     keys.forEach(k=>{const g=evs.filter(e=>laneKey(e)===k).sort((a,b)=>T[a.id].x-T[b.id].x||S[a.id].y-S[b.id].y);if(!g.length)return;const ends=[];
       g.forEach(e=>{let r=0;while(ends[r]!=null&&ends[r]>T[e.id].x-14)r++;ends[r]=T[e.id].x+NW;T[e.id].y=top+r*gy});top+=ends.length*gy+LPAD})}
+  else if(o.v==='line'){evs.forEach(e=>T[e.id].y=LPAD+20)}
   else if(o.v==='rows'){const arr=[...evs].sort((a,b)=>S[a.id].y-S[b.id].y);let row=-1,ry=-1e9;arr.forEach(e=>{if(S[e.id].y-ry>NH*.6){row++;ry=S[e.id].y}T[e.id].y=LPAD+row*gy})}
   else evs.forEach(e=>T[e.id].y=S[e.id].y);
   if(o.v!=='keep'||o.h!=='keep'){const placed=[];[...evs].sort((a,b)=>T[a.id].x-T[b.id].x||T[a.id].y-T[b.id].y).forEach(e=>{const t=T[e.id];let hit=true,n=0;
@@ -1006,7 +1016,7 @@ $('vp').addEventListener('pointerup',e=>{
       if(F.laneMode==='lane'&&L.key!==NOLANE&&!D.lanes.includes(L.key))D.lanes.push(L.key);
       msg.push(`'${L.key}' ${tx(F.laneMode==='cat'?'{cat|으로/로}':'{group|으로/로}')}`);
     }
-    const sib=D.events.filter(x=>x!==ev&&laneKey(x)===laneKey(ev)&&x.year===ev.year).sort((a,b)=>(a.ord??1e9)-(b.ord??1e9));
+    const sib=D.events.filter(x=>x!==ev&&x.year===ev.year).sort((a,b)=>(a.ord??1e9)-(b.ord??1e9)||D.events.indexOf(a)-D.events.indexOf(b));
     sib.splice(Math.min(r.idx,sib.length),0,ev);sib.forEach((x,i)=>x.ord=i);
     if(msg.length)toast(msg.join(' · ')+' 옮겼습니다');
     render();
@@ -1210,6 +1220,11 @@ function alignSel(k){const ids=[...SELN].filter(id=>POS[id]);if(ids.length<2)ret
   if(k==='dh'||k==='dv'){const ax=k==='dh'?'x':'y',f=k==='dh'?'fx':'fy',srt=[...P].sort((a,b)=>a[ax]-b[ax]),a=srt[0][ax],z=srt[srt.length-1][ax];
     srt.forEach((p,i)=>{byId(p.id)[f]=Math.round(a+(z-a)*i/(srt.length-1))})}
   render()}
+function seqTidy(){$('td_h').value='seq';$('td_v').value='line';$('td_p').value=100;openTidy()}
+function seqRowSel(){const ids=[...SELN].filter(id=>POS[id]);if(ids.length<2)return;ensureFree();
+  const ev=ids.map(byId).sort((a,b)=>a.year-b.year||POS[a.id].x-POS[b.id].x),x0=Math.min(...ids.map(i=>POS[i].x)),y0=Math.min(...ids.map(i=>POS[i].y));
+  D.events.forEach(e=>{const p=POS[e.id];if(p&&e.fx==null){e.fx=p.x;e.fy=p.y}});
+  ev.forEach((e,i)=>{e.fx=Math.round(x0+i*COLW);e.fy=Math.round(y0)});render();toast(`${ev.length}개를 사건 순서대로 한 줄에 배열했습니다`)}
 function connectSel(){const ev=[...SELN].map(byId).filter(Boolean).sort((a,b)=>a.year-b.year||(POS[a.id]?.x||0)-(POS[b.id]?.x||0));let n=0;
   for(let i=1;i<ev.length;i++){if(!ev[i-1].links.some(l=>l.to===ev[i].id)){ev[i-1].links.push({to:ev[i].id,label:''});n++}}render();toast(`${n}개 연결을 만들었습니다`)}
 function dupSel(){const ids=[...SELN].filter(byId),map={};ids.forEach(id=>map[id]=uid());const add=[];
@@ -1221,6 +1236,7 @@ function multiMenu(cx,cy){const n=[...SELN].filter(byId).length;return [
   {icon:'✎',label:`${n}개 일괄 편집…`,run:()=>openBulk()},
   {row:[{icon:'⇤',title:'왼쪽 맞춤',run:()=>alignSel('l')},{icon:'⇹',title:'가로 가운데 맞춤',run:()=>alignSel('cx')},{icon:'⇥',title:'오른쪽 맞춤',run:()=>alignSel('r')},{icon:'⤒',title:'위쪽 맞춤',run:()=>alignSel('t')},{icon:'⇳',title:'세로 가운데 맞춤',run:()=>alignSel('cy')},{icon:'⤓',title:'아래쪽 맞춤',run:()=>alignSel('b')}],label:'맞춤'},
   {row:[{icon:'↔',title:'가로 간격 균등',run:()=>alignSel('dh')},{icon:'↕',title:'세로 간격 균등',run:()=>alignSel('dv')}],label:'간격'},
+  {icon:'⇢',label:'사건순으로 가로 배열',run:()=>seqRowSel()},
   {icon:'→',label:'연도순으로 연결',run:()=>connectSel()},
   {icon:'⧉',label:'복제',run:()=>dupSel()},
   {icon:'○',label:'선택 해제',run:()=>{SELN=new Set();renderFlow()}},
@@ -1266,6 +1282,7 @@ $('vp').addEventListener('contextmenu',e=>{
     {icon:'＋',label:tx('{who} 추가'),run:()=>openChar()},
     {icon:'＋',label:tx('{era} 추가'),run:()=>openEra()},
     '-',
+    {icon:'⇢',label:'사건순으로 가로 배열',run:()=>seqTidy()},
     {icon:'⇲',label:'정리하기',run:()=>openTidy()},
     {icon:'⤢',label:'전체 맞춤',run:()=>fit()}
   ]);
