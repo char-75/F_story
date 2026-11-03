@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>연혁 플로우</title>
+<title>연혁 플로우 — 뷰어</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600;800&display=swap" rel="stylesheet">
 <style>
@@ -212,6 +212,19 @@ svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
 .edge-g.moving{opacity:.25}
 .edge-bar{position:absolute;transform:translateX(-50%);z-index:12;display:flex;gap:2px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:3px 4px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
 .edge-bar input{border:1px solid var(--line);border-radius:6px;padding:3px 7px;width:130px;font-size:12px}
+.ro-only{display:none}
+body.ro .ro-only{display:inline-flex}
+body.ro header>.btn:not(.ro-only):not(.ghost),body.ro header .btn.ghost[onclick="openTerms()"],body.ro #arrSeg,body.ro #tidyBtn,body.ro #resetPosBtn,body.ro #laneEditBtn,body.ro .char-row .ed,body.ro .card h3 .btn,body.ro .port,body.ro .empty .btn,body.ro #helpbox{display:none !important}
+body.ro #worldName,body.ro #calName{pointer-events:none}
+body.ro .title-wrap .meta{display:none}
+body.ro .node{cursor:pointer}
+.dt-imgs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.dt-imgs img{width:96px;height:96px;object-fit:cover;border-radius:8px;cursor:zoom-in}
+.dt-meta{font-size:12px;color:var(--c,var(--sub));font-weight:500}
+#detailBody h2{margin:4px 0 8px}
+#detailBody h5{margin:14px 0 6px;font-size:12px;color:var(--sub)}
+.dt-desc{white-space:pre-wrap;line-height:1.65;margin:6px 0;color:#3d362e}
+#detailBody .chip small{opacity:.65}
 .tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;z-index:150;display:none;max-width:280px;line-height:1.5;white-space:pre-wrap}
 .modal-bg{position:fixed;inset:0;background:rgba(20,16,12,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
 .modal-bg.show{display:flex}
@@ -246,6 +259,8 @@ svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
   <button class="btn" onclick="openChar()" data-t="＋ {who}"></button>
   <button class="btn primary" onclick="openEvent()" data-t="＋ {item}"></button>
   <button class="btn" onclick="openIO()">저장 / 불러오기</button>
+  <span class="meta ro-only" id="roNote"></span>
+  <button class="btn ro-only" onclick="openFileView()">JSON 열기</button>
   <button class="btn ghost" onclick="openTerms()" title="용어 설정">⚙ 용어</button>
 </header>
 
@@ -433,17 +448,20 @@ svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
       <label class="btn left">파일 불러오기<input type="file" accept=".json,application/json" id="ioFile" style="display:none"></label>
       <button class="btn" onclick="importText()">붙여넣은 JSON 적용</button>
       <button class="btn" onclick="resetAll(this)">새로 시작</button>
+      <button class="btn" onclick="downloadBoard()" title="GitHub 뷰어용 board.json (이미지 포함)">board.json 받기</button>
       <button class="btn primary" onclick="copyIO()">복사</button>
     </div>
   </div>
 </div>
 
+<div class="modal-bg" id="detailModal"><div class="modal"><div id="detailBody"></div><div class="actions" id="detailFoot" style="margin-top:14px"></div></div></div>
 <datalist id="dlLanes"></datalist>
 <div class="tip" id="tip"></div>
 <div id="lb" onclick="if(event.target===this)closeLB()"><button class="x" onclick="closeLB()">✕</button><button class="nav prev" onclick="lbGo(-1)">‹</button><img id="lbImg" alt=""><button class="nav next" onclick="lbGo(1)">›</button><div class="cap" id="lbCap"></div><div class="dots" id="lbDots"></div></div>
 <input type="file" id="imgFile" accept="image/*" multiple style="display:none">
 <div class="toast" id="toast"></div>
 
+<script>window.READONLY_MODE=true;</script>
 <script>
 const KEY='worldline-v2', OLDKEY='worldline-v1';
 const uid=()=>Math.random().toString(36).slice(2,10);
@@ -478,8 +496,9 @@ function stripSample(d){ // 예시 데이터 1회 정리
   if(d.cal==='왕국력')d.cal='';
   d.cleaned=true; return d;
 }
+const READONLY=window.READONLY_MODE===true;
 let D=null;
-for(const k of [KEY,OLDKEY]){try{const o=JSON.parse(localStorage.getItem(k));if(o&&o.events){D=o;if(k===OLDKEY)o.events.forEach(e=>e.lane=e.lane||'');break}}catch(e){}}
+if(!READONLY)for(const k of [KEY,OLDKEY]){try{const o=JSON.parse(localStorage.getItem(k));if(o&&o.events){D=o;if(k===OLDKEY)o.events.forEach(e=>e.lane=e.lane||'');break}}catch(e){}}
 D=normalize(stripSample(D?normalize(D):null)||{name:'',cal:'',lanes:[],eras:[],events:[],chars:[],cleaned:true});
 let F={cats:new Set(),places:new Set(),focus:null,imp:1,view:'flow',laneMode:'lane'};
 let Z=1, POS={}, LANES=[], COLS=[], editingEv=null, tmpLinks=[], editingEra=null, ioFmt='json', listKey='';
@@ -496,7 +515,7 @@ function applyTerms(){document.querySelectorAll('[data-t]').forEach(el=>el.textC
 function openTerms(){fillTerms(TT());$('presetChips').innerHTML=Object.keys(PRESETS).map(k=>`<span class="chip" onclick="fillTerms(PRESETS['${k}'])">${k}</span>`).join('');openM('termsModal')}
 function fillTerms(T){['era','item','who','group','cat','tag'].forEach(k=>$('t_'+k).value=T[k]);$('t_age').value=T.age}
 function saveTerms(){const n={};['era','item','who','group','cat','tag'].forEach(k=>n[k]=$('t_'+k).value.trim()||DEFAULT_TERMS[k]);n.age=$('t_age').value;D.terms=n;closeM('termsModal');render();toast('용어를 바꿨습니다')}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){}}
+function save(){if(READONLY)return;try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){}}
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2000)}
 function fmtYear(y){y=Number(y);const c=D.cal?D.cal+' ':'';return y<0?`${c}이전 ${-y}년`:`${c}${y}년`}
 function shortYear(y){y=Number(y);return y<0?`전 ${-y}`:`${y}`}
@@ -555,7 +574,7 @@ function render(){
   applyTerms();
   $('worldName').value!==D.name&&document.activeElement!==$('worldName')&&($('worldName').value=D.name||'');
   document.activeElement!==$('calName')&&($('calName').value=D.cal||'');
-  document.title=(D.name||'연혁 플로우');
+  document.title=(D.name||'연혁 플로우')+(READONLY?' — 뷰어':'');
   renderSide();
   $('filterInfo').textContent=filterCount()?`${D.events.filter(matches).length}개 일치`:'';
   $('laneEditBtn').style.display=F.laneMode==='lane'?'':'none';
@@ -734,12 +753,12 @@ function renderFlow(){
   eraSpans.forEach(sp=>t+=`<div class="era-tag" data-x0="${sp.l+3}" data-w="${sp.r-sp.l-6}" style="background:${sp.er.color}" onclick="openEra('${sp.er.id}')" data-tip="${esc(sp.er.name)}\n${esc(fmtYear(sp.er.start))} ~ ${esc(fmtYear(sp.er.end))}${sp.er.desc?'\n'+esc(sp.er.desc):''}">${esc(sp.er.name)}</div>`);
   COLS.forEach((y,i)=>{t+=`<div class="yr-tick" data-x0="${colX(i)+NW/2}">${shortYear(y)}</div>`;
     if(i>0){const g=y-COLS[i-1];t+=`<div class="gap-tick" data-x0="${colX(i)-GAPX/2}">+${g.toLocaleString()}년</div>`}});
-  if(D.free)t=`<div class="free-note">자유 배치 중 — 노드를 원하는 곳에 끌어다 두세요. 연도는 각 노드에 표시됩니다. · 정리하기로 한 번에 정돈할 수 있어요</div>`;
+  if(D.free)t=READONLY?`<div class="free-note">항목을 클릭하면 상세 내용을 볼 수 있어요 · 화면을 끌어 이동 · Ctrl+휠 또는 오른쪽 아래 버튼으로 확대</div>`:`<div class="free-note">자유 배치 중 — 노드를 원하는 곳에 끌어다 두세요. 연도는 각 노드에 표시됩니다. · 정리하기로 한 번에 정돈할 수 있어요</div>`;
   $('topInner').innerHTML=t;
   $('board').classList.toggle('free',!!D.free);$('resetPosBtn').style.display=D.free?'':'none';setSeg('arrSeg','a',D.free?'free':'auto');
   $('laneInner').innerHTML=D.free?'':LANES.map(L=>`<div class="lane-tag" data-y0="${L.y}" data-h="${L.h}" ${F.laneMode==='lane'?`onclick="editList('lanes')"`:''}>${esc(L.key)}<span>${L.count}개 ${tx('{item}')}</span></div>`).join('');
   $('board').querySelector('.empty')?.remove();
-  if(!D.events.length){const em=document.createElement('div');em.className='empty';em.style.gridArea='2/2';em.innerHTML='<div style="font-family:Noto Serif KR;font-size:18px;color:var(--ink)">비어 있는 보드입니다</div><div style="text-align:center;line-height:1.8">'+tx('① 상단에 보드 이름을 적고<br>② {era|으로/로} 큰 흐름을 나눈 뒤<br>③ {who|와/과} {item|을/를} 추가해 보세요<br><small>⚙ 용어에서 용도에 맞는 이름으로 바꿀 수 있어요</small>')+'</div><div style="display:flex;gap:6px"><button class="btn" onclick="openEra()">＋ '+tx('{era}')+'</button><button class="btn" onclick="openChar()">＋ '+tx('{who}')+'</button><button class="btn primary" onclick="openEvent()">＋ '+tx('{item}')+'</button></div>';$('board').appendChild(em)}
+  if(!D.events.length){const em=document.createElement('div');em.className='empty';em.style.gridArea='2/2';em.innerHTML=READONLY?'<div style="font-family:Noto Serif KR;font-size:18px;color:var(--ink)">표시할 보드가 없습니다</div><div style="text-align:center;line-height:1.8">저장소의 board.json을 불러오지 못했어요.<br>편집기에서 받은 board.json 파일을 이 화면에 끌어다 놓으면 미리 볼 수 있습니다.</div>':'<div style="font-family:Noto Serif KR;font-size:18px;color:var(--ink)">비어 있는 보드입니다</div><div style="text-align:center;line-height:1.8">'+tx('① 상단에 보드 이름을 적고<br>② {era|으로/로} 큰 흐름을 나눈 뒤<br>③ {who|와/과} {item|을/를} 추가해 보세요<br><small>⚙ 용어에서 용도에 맞는 이름으로 바꿀 수 있어요</small>')+'</div><div style="display:flex;gap:6px"><button class="btn" onclick="openEra()">＋ '+tx('{era}')+'</button><button class="btn" onclick="openChar()">＋ '+tx('{who}')+'</button><button class="btn primary" onclick="openEvent()">＋ '+tx('{item}')+'</button></div>';$('board').appendChild(em)}
   applyZoom(); syncHeaders();
 }
 
@@ -841,6 +860,7 @@ let drag=null;
 $('vp').addEventListener('pointerdown',e=>{
   if(e.button!==0)return;
   const port=e.target.closest('.port.out'), node=e.target.closest('.node'), hit=e.target.closest('.edge-hit');
+  if(READONLY){drag={type:'pan',sx:e.clientX,sy:e.clientY,sl:$('vp').scrollLeft,st:$('vp').scrollTop,nodeId:node?.dataset.id,tgt:e.target};$('vp').classList.add('panning');$('vp').setPointerCapture(e.pointerId);return}
   const eh=e.target.closest('.eh');
   if(eh){e.preventDefault();const role=eh.dataset.role;drag={type:role==='m'?'bend':'reedge',role,from:SEL.from,to:SEL.to,sx:e.clientX,sy:e.clientY,b0:{...(linkOf(SEL.from,SEL.to).bend||{x:0,y:0})},moved:false};
     if(role!=='m'){document.querySelector(`.edge-g.sel`)?.classList.add('moving');$('board').classList.add('connecting')}$('vp').setPointerCapture(e.pointerId);return}
@@ -870,6 +890,7 @@ $('vp').addEventListener('pointermove',e=>{
 });
 $('vp').addEventListener('pointerup',e=>{
   if(!drag)return;const d=drag;drag=null;$('vp').classList.remove('panning');$('board').classList.remove('connecting');
+  if(d.type==='pan'&&d.nodeId&&Math.abs(e.clientX-d.sx)+Math.abs(e.clientY-d.sy)<5){const ev=byId(d.nodeId);if(d.tgt.classList?.contains('n-img'))openLB(ev.imgs,0,ev.title);else openDetail(d.nodeId);return}
   if(d.type==='node'){
     if(!d.moved){if(d.tgt.classList?.contains('n-img')){const ev=byId(d.id);openLB(ev.imgs,0,ev.title)}else openEvent(d.id);return}
     const ev=byId(d.id),nx=parseFloat(d.el.style.left),ny=parseFloat(d.el.style.top);
@@ -920,6 +941,7 @@ $('vp').addEventListener('pointerup',e=>{
   }
 });
 $('vp').addEventListener('dblclick',e=>{
+  if(READONLY)return;
   if(e.target.closest('.eh.mid')){resetBend();return}
   const hit=e.target.closest('.edge-hit');if(hit){openEvent(hit.dataset.src,null,true);return}
   if(e.target.closest('.node,.eh,.edge-bar'))return;const p=toCanvas(e.clientX,e.clientY);const L=laneAt(p.y);
@@ -978,6 +1000,7 @@ document.addEventListener('keydown',e=>{const typing=/INPUT|TEXTAREA|SELECT/.tes
 
 let pendingFrom=null,pendingPos=null;
 function openEvent(id,year,focusLinks,lane,from,pos){
+  if(READONLY){if(id)openDetail(id);return}
   pendingFrom=id?null:(from||null);pendingPos=id?null:(pos||null);
   editingEv=id?byId(id):null;
   const e=editingEv||{year:year??'',when:'',title:'',cat:(from&&byId(from)?.cat)||D.cats[0]||'',imp:1,desc:'',people:[],places:[],note:'',lane:lane||'',links:[]};
@@ -1014,6 +1037,7 @@ function confirmBtn(b,label,fn){if(b.dataset.c!=='1'){b.dataset.c='1';const o=b.
 function delEvent(){const b=$('evDel');confirmBtn(b,'한 번 더 누르면 삭제',()=>{b.textContent='삭제';const id=editingEv.id;(byId(id).imgs||[]).forEach(dropImg);D.events=D.events.filter(e=>e.id!==id);D.events.forEach(e=>e.links=e.links.filter(l=>l.to!==id));closeM('evModal');render();toast('삭제했습니다')})}
 
 function openEra(id){
+  if(READONLY)return;
   editingEra=id?D.eras.find(e=>e.id===id):null;const last=D.eras[D.eras.length-1];
   const e=editingEra||{name:'',start:last?last.end+1:0,end:last?last.end+100:100,color:PAL[(D.eras.length+2)%PAL.length],desc:''};
   $('eraTitle').textContent=tx(editingEra?'{era} 편집':'{era} 추가');
@@ -1029,6 +1053,7 @@ function saveEra(){
 function delEra(){const b=$('eraDel');confirmBtn(b,tx('한 번 더 ({item|은/는} 유지)'),()=>{b.textContent='삭제';D.eras=D.eras.filter(e=>e!==editingEra);closeM('eraModal');render()})}
 
 function editList(k){
+  if(READONLY)return;
   listKey=k;$('listTitle').textContent=tx(k==='cats'?'{cat} 편집':'{group} 편집');
   const cur=k==='lanes'?[...new Set([...D.lanes,...D.events.map(e=>e.lane).filter(Boolean)])]:D.cats;
   $('listInput').value=cur.join(', ');
@@ -1074,6 +1099,7 @@ function renderChars(){
 }
 
 function openChar(id){
+  if(READONLY){if(id)openCharDetail(id);return}
   editingChar=id?charById(id):null;
   const c=editingChar||newChar('');
   tmpRels=c.rels.map(r=>({...r}));tmpImgs.char=[...(c.imgs||[])];renderImgs('char');
@@ -1183,9 +1209,41 @@ function lbShow(){$('lbImg').src=full(LB.ids[LB.i]);$('lbCap').textContent=`${LB
   $('lbDots').innerHTML=LB.ids.length>1?LB.ids.map((id,i)=>`<img src="${thumb(id)}" class="${i===LB.i?'on':''}" onclick="LB.i=${i};lbShow()">`).join(''):''}
 function lbGo(d){if(LB.ids.length<2)return;LB.i=(LB.i+d+LB.ids.length)%LB.ids.length;lbShow()}
 function closeLB(){$('lb').classList.remove('show')}
+function loadView(o){if(!o||!Array.isArray(o.events)){toast('보드 데이터 형식이 아닙니다');return}
+  const im=o.images;delete o.images;if(im)Object.entries(im).forEach(([k,v])=>{if(v&&v.full)IMG[k]=v});o.cleaned=true;D=normalize(o);
+  $('roNote').textContent='';render();requestAnimationFrame(fit)}
+if(READONLY){document.addEventListener('dragover',e=>e.preventDefault());document.addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{loadView(JSON.parse(r.result))}catch(err){toast('JSON 파일을 읽을 수 없습니다')}};r.readAsText(f)})}
+function openFileView(){const i=document.createElement('input');i.type='file';i.accept='.json,application/json';i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{loadView(JSON.parse(r.result))}catch(err){toast('JSON 파일을 읽을 수 없습니다')}};r.readAsText(f)};i.click()}
+function goItem(id){closeM('detailModal');setView('flow');setTimeout(()=>jumpEv(id),60)}
+function openDetail(id){const e=byId(id);if(!e)return;
+  const ins=D.events.filter(s=>s.links.some(l=>l.to===id)),era=eraOf(e.year);
+  const meta=[fmtYear(e.year)+(e.when?' '+e.when:''),era?.name,e.lane,e.cat,['','','주요','핵심'][e.imp]].filter(Boolean).map(esc).join(' · ');
+  $('detailBody').innerHTML=`${e.imgs.length?`<div class="dt-imgs">${e.imgs.map((m,i)=>`<img src="${thumb(m)}" onclick="openLB(byId('${id}').imgs,${i},byId('${id}').title)">`).join('')}</div>`:''}
+    <div class="dt-meta" style="--c:${catColor(e.cat)}">${meta}</div><h2>${e.imp===3?'★ ':''}${esc(e.title)}</h2>
+    ${e.desc?`<p class="dt-desc">${esc(e.desc)}</p>`:''}
+    ${e.people.length?`<h5>${tx('{who}')}</h5><div class="chips">${e.people.map(n=>{const c=charByName(n);return `<span class="chip" ${c?`onclick="openCharDetail('${c.id}')"`:''}>${avatar(c||{name:n,color:'#bbb'},16)} ${esc(n)}${c&&ageAt(c,e.year)!=null?` <small>${esc(ageAt(c,e.year))}</small>`:''}</span>`}).join('')}</div>`:''}
+    ${e.places.length?`<h5>${tx('{tag}')}</h5><div class="chips">${e.places.map(p=>`<span class="tag">${esc(p)}</span>`).join(' ')}</div>`:''}
+    ${e.note?`<h5>메모</h5><p class="dt-desc">${esc(e.note)}</p>`:''}
+    ${ins.length||e.links.length?`<h5>흐름</h5>${ins.map(s=>`<div class="linkrow in" style="cursor:pointer" onclick="openDetail('${s.id}')"><span class="to">← ${esc(shortYear(s.year))} ${esc(s.title)}${(s.links.find(l=>l.to===id)||{}).label?` · ${esc(s.links.find(l=>l.to===id).label)}`:''}</span></div>`).join('')}${e.links.map(l=>{const t=byId(l.to);return t?`<div class="linkrow" style="cursor:pointer" onclick="openDetail('${t.id}')"><span class="to">→ ${esc(shortYear(t.year))} ${esc(t.title)}${l.label?` · ${esc(l.label)}`:''}</span></div>`:''}).join('')}`:''}`;
+  $('detailFoot').innerHTML=`<button class="btn" onclick="goItem('${id}')">플로우에서 위치 보기</button><button class="btn primary" onclick="closeM('detailModal')">닫기</button>`;
+  openM('detailModal');$('detailModal').querySelector('.modal').scrollTop=0}
+function openCharDetail(cid){const c=charById(cid);if(!c)return;const evs=D.events.filter(e=>e.people.includes(c.name)).sort((a,b)=>a.year-b.year);
+  $('detailBody').innerHTML=`<div class="ccard" style="--c:${c.color};border:none;padding:0;cursor:default"><div class="ch"><span ${c.imgs.length?`style="cursor:zoom-in" onclick="openLB(charById('${cid}').imgs,0,charById('${cid}').name)"`:''}>${avatar(c,72)}</span><div><h4 style="font-size:22px">${esc(c.name)}<small>${esc(c.faction||'')}</small></h4><div class="cm">${esc([c.role,lifeText(c)].filter(Boolean).join(' · '))}</div></div></div></div>
+    ${c.desc?`<p class="dt-desc">${esc(c.desc)}</p>`:''}
+    ${c.imgs.length>1?`<div class="dt-imgs">${c.imgs.slice(1).map((m,i)=>`<img src="${thumb(m)}" onclick="openLB(charById('${cid}').imgs,${i+1},charById('${cid}').name)">`).join('')}</div>`:''}
+    ${c.rels.length?`<h5>관계</h5><div class="chips">${c.rels.map(r=>{const t=charById(r.to);return t?`<span class="chip" onclick="openCharDetail('${t.id}')">${avatar(t,16)} ${esc(t.name)} <small>${esc(r.label||'관계')}</small></span>`:''}).join('')}</div>`:''}
+    ${evs.length?`<h5>${tx('관련 {item}')}</h5><div class="evlist">${evs.map(e=>{const a=ageAt(c,e.year);return `<div class="linkrow" onclick="openDetail('${e.id}')"><span class="yr">${shortYear(e.year)}</span><span class="to">${esc(e.title)}</span>${a!=null?`<span class="ag">${esc(a)}</span>`:''}</div>`}).join('')}</div>`:''}`;
+  $('detailFoot').innerHTML=`<button class="btn" onclick="closeM('detailModal');F.focus=null;toggleFocus('${cid}');setView('flow')">흐름 보기</button><button class="btn primary" onclick="closeM('detailModal')">닫기</button>`;
+  openM('detailModal');$('detailModal').querySelector('.modal').scrollTop=0}
+async function downloadText(name,text,type){
+  try{if(window.claude?.use){const dl=await window.claude.use('downloads');if(dl){await dl.save({filename:name,data:text});return true}}}catch(err){if(err&&/declin|cancel|abort/i.test(String(err.code||err.message||err)))return false}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);return true}catch(err){toast('다운로드할 수 없습니다 — 복사 버튼을 이용하세요');return false}}
+function downloadBoard(){const ids=usedImgs(),out={...D,images:{}};ids.forEach(id=>{if(IMG[id])out.images[id]=IMG[id]});downloadText('board.json',JSON.stringify(out))}
 addEventListener('resize',syncHeaders);
 render();
-IDB.open().then(async ok=>{idbOK=ok;const all=await IDB.all();Object.assign(IMG,all);
+if(READONLY){document.body.classList.add('ro');
+  fetch('board.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw 0;return r.json()}).then(o=>loadView(o)).catch(()=>{$('roNote').textContent='board.json을 찾지 못했습니다 — 백업 JSON 파일을 화면에 끌어다 놓으면 미리 볼 수 있어요';render()});
+}else IDB.open().then(async ok=>{idbOK=ok;const all=await IDB.all();Object.assign(IMG,all);
   const used=new Set(usedImgs());Object.keys(all).forEach(id=>{if(!used.has(id))dropImg(id)}); // 정리: 쓰이지 않는 이미지
   render()});
 requestAnimationFrame(()=>{const vp=$('vp');if(parseFloat($('canvas').style.width)>vp.clientWidth*1.6)setZoom(.85);});
